@@ -1,4 +1,4 @@
-/* CruciAula 0.6.2: entrada docente directa + portada QR y entregas con soluciones privadas.
+/* CruciAula 0.6.3: entrada docente directa + portada QR y entregas con soluciones privadas.
  * Independiente de Roscoaula. */
 'use strict';
 
@@ -696,7 +696,9 @@ async function publishOrShare(p){
     }catch(e){console.error(e);alert('No se pudo publicar: '+e.message);return}
   }
   sharePuzzleId=p.id;
-  const link=new URL(window.location.href);link.search='';link.hash='';link.searchParams.set('juego',p.id);
+  // Siempre generar QR ONLINE; jamás hacia file:/// en una PC de edición.
+  const link=new URL('https://roscoaula.github.io/CruciAula/');
+  link.searchParams.set('juego',p.id);
   $('#share-link').value=link.href;
   $('#share-modal').hidden=false;
   const display=$('#share-qr');display.replaceChildren();
@@ -721,21 +723,39 @@ async function loadStudentAccess(puzzleId){
     $('#btn-play').disabled=true;
     show('home');finishStartup();return;
   }
+  // Seguimos la misma secuencia que el diagnóstico de acceso que pasó las 3 pruebas.
+  // Hacemos lecturas DESDE EL SERVIDOR para evitar discrepancias por datos en caché.
+  let etapa='autenticación del alumno';
   try{
-    if(!cloud.auth.currentUser){await cloud.auth.signInAnonymously();}
-    if(cloud.auth.currentUser?.uid===cloud.TEACHER_UID){
-      throw Error('Para probar el QR como alumno, abrí este enlace en una ventana de incógnito.');
+    const usuario=cloud.auth.currentUser || (await cloud.auth.signInAnonymously()).user;
+    if(usuario?.uid===cloud.TEACHER_UID){
+      throw Error('El profesor ya tiene sesión iniciada. Abrí el enlace en incógnito para probar como alumno.');
     }
-    if(!cloud.auth.currentUser?.isAnonymous)throw Error('No se pudo habilitar el acceso del alumno.');
-    const doc=await cloud.db.collection('publicos').doc(puzzleId).get();
-    if(!doc.exists)throw Error('Este crucigrama no está publicado o su enlace ya no es válido.');
+    if(!usuario?.isAnonymous)throw Error('No se pudo habilitar el acceso anónimo.');
+    await usuario.getIdToken();
+    const leer=async (ref)=>{
+      try {return await ref.get({source:'server'});}
+      catch(err){
+        if(err.code!=='permission-denied')throw err;
+        // Un único reintento tras actualizar el token, nunca cambiamos el UID.
+        await usuario.getIdToken(true);
+        return ref.get({source:'server'});
+      }
+    };
+    etapa='lectura del crucigrama publicado';
+    const doc=await leer(cloud.db.collection('publicos').doc(puzzleId));
+    if(!doc.exists || doc.data()?.published!==true){
+      throw Error('El crucigrama no está publicado o el enlace no corresponde a una actividad disponible.');
+    }
     guestPuzzle={...doc.data(),id:doc.id};qrGuest=true;
     if(!guestPuzzle.layout?.words?.length)throw Error('Este crucigrama no tiene grilla.');
     state.activePuzzleId=guestPuzzle.id;
-    const previous=await cloud.db.collection('entregas').doc(`${guestPuzzle.id}_${cloud.auth.currentUser.uid}`).get();
+    etapa='comprobación de entrega anterior';
+    const previous=await leer(cloud.db.collection('entregas').doc(`${guestPuzzle.id}_${usuario.uid}`));
     if(previous.exists){
       const sub=previous.data();
-      const sol=await cloud.db.collection('soluciones').doc(guestPuzzle.id).get();
+      etapa='lectura de corrección de una entrega previa';
+      const sol=await leer(cloud.db.collection('soluciones').doc(guestPuzzle.id));
       const words=guestPuzzle.layout.words;
       const correctMap=sol.data()?.answers||{};
       const incorrect=words.filter(w=>normalize(sub.answers?.[String(w.id)]||'')!==correctMap[String(w.id)]).map(w=>({number:w.number,direction:w.dir,clue:w.clue,given:sub.answers?.[String(w.id)]||'',solution:correctMap[String(w.id)]||''}));
@@ -772,11 +792,11 @@ async function loadStudentAccess(puzzleId){
       $('#course-required-label').textContent='(obligatorio)';
       show('home');
     }
-  }catch(e){console.error('QR:',e);
-    $('#home-mode').textContent='NO SE PUDO ABRIR LA ACTIVIDAD';
-    $('#home-card-title').textContent='Enlace no disponible';
-    $('#home-card-detail').textContent=e.message;
-    $('#home-hint').textContent='Pedile al profesor un enlace válido.';
+  }catch(e){console.error('CruciAula QR 0.6.3:',etapa,e);
+    $('#home-mode').textContent='PROBLEMA AL CARGAR LA ACTIVIDAD';
+    $('#home-card-title').textContent='No pudimos abrir el crucigrama';
+    $('#home-card-detail').textContent=`Error en ${etapa}: ${e.message}`;
+    $('#home-hint').textContent='Si vuelve a aparecer, compartí este mensaje exacto con quien configura CruciAula.';
     $('#btn-play').disabled=true;show('home');
   }finally{finishStartup();}
 }
