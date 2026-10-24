@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="es-AR">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CruciAula · Diagnóstico de acceso</title>
+<style>
+body{font-family:system-ui,Arial,sans-serif;background:#f3efff;color:#211941;margin:0;padding:28px 14px}
+main{max-width:610px;margin:auto;background:#fff;border:1px solid #dfd6ff;border-radius:18px;padding:25px;box-shadow:0 12px 24px #34237111}
+h1{color:#5933bd;font-size:25px;margin:0 0 10px}p{line-height:1.5;color:#5f5a78}
+.test{margin:14px 0;padding:14px;border:1px solid #ddd8ec;border-radius:12px;white-space:pre-wrap;overflow-wrap:anywhere}
+.good{background:#effaf4;border-color:#b8e7cb}.bad{background:#fff0f0;border-color:#f0b5b5}.loading{background:#f4f1fd}
+button{background:#5432b8;color:white;border:0;border-radius:10px;padding:12px 20px;font-weight:700;cursor:pointer}
+small{display:block;margin-top:18px;color:#666}
+</style>
+</head>
+<body><main>
+<h1>▦ CruciAula · Diagnóstico del QR</h1>
+<p>Esta página solo revisa permisos de lectura. <strong>No modifica crucigramas, resultados ni reglas.</strong> Abrila en una ventana de incógnito, sin la sesión de Juan.</p>
+<div id="auth" class="test loading">1. Autenticación: comprobando…</div>
+<div id="pub" class="test loading">2. Lectura del crucigrama: pendiente…</div>
+<div id="sub" class="test loading">3. Lectura de entrega: pendiente…</div>
+<button id="copy" type="button">Copiar resultado</button>
+<p id="copymsg" aria-live="polite"></p>
+<small>Actividad de prueba: Prueba de Básquet. Esta herramienta temporal se puede borrar del repositorio cuando terminemos de revisar el acceso.</small>
+</main>
+<script src="https://www.gstatic.com/firebasejs/13.1.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/13.1.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/13.1.0/firebase-firestore-compat.js"></script>
+<script>
+(async()=>{
+ const id='cruci-1792797686477-1413';
+ const config={apiKey:'AIzaSyB2X9GbPTRIn5LdetmzMhUihYUPQJI5Hs8',authDomain:'cruciaula.firebaseapp.com',projectId:'cruciaula',storageBucket:'cruciaula.firebasestorage.app',messagingSenderId:'319707417848',appId:'1:319707417848:web:fdbf62585e5d647f7e7f0d'};
+ const set=(el,ok,s)=>{const target=document.getElementById(el);target.className='test '+(ok?'good':'bad');target.textContent=s;};
+ const fail=e=>(e.code||'error')+' · '+(e.message||String(e));
+ try{
+  if(typeof firebase==='undefined')throw Error('No cargaron las bibliotecas de Firebase.');
+  const app=firebase.apps.length?firebase.app():firebase.initializeApp(config);
+  const auth=app.auth(); const db=app.firestore();
+  let user=await new Promise((res,rej)=>{const u=auth.onAuthStateChanged(x=>{u();res(x);},rej);});
+  if(!user)user=(await auth.signInAnonymously()).user;
+  if(!user.isAnonymous){set('auth',false,'1. Ya hay una sesión que no es anónima. Abrí este enlace en incógnito.');return;}
+  set('auth',true,'1. Autenticación anónima: CORRECTA');
+  try{
+   const doc=await db.collection('publicos').doc(id).get({source:'server'});
+   if(doc.exists)set('pub',true,'2. Lectura de publicos: CORRECTA · published='+String(doc.data().published));
+   else set('pub',false,'2. Firestore respondió, pero el crucigrama NO EXISTE en este proyecto.');
+  }catch(e){set('pub',false,'2. Lectura de publicos: ERROR · '+fail(e));}
+  try{
+   const doc=await db.collection('entregas').doc(id+'_'+user.uid).get({source:'server'});
+   set('sub',true,'3. Lectura de entrega propia: CORRECTA · '+(doc.exists?'Ya existe una entrega':'Todavía no existe entrega'));
+  }catch(e){set('sub',false,'3. Lectura de entrega propia: ERROR · '+fail(e));}
+ }catch(e){set('auth',false,'1. Autenticación: ERROR · '+fail(e));}
+})();
+document.getElementById('copy').onclick=async()=>{
+ const msg=['CruciAula diagnóstico','auth','pub','sub'].map(x=>x==='CruciAula diagnóstico'?x:document.getElementById(x).textContent).join('\n');
+ try{await navigator.clipboard.writeText(msg);document.getElementById('copymsg').textContent='Resultado copiado. Pegalo en el chat.';}
+ catch{document.getElementById('copymsg').textContent='Copiá los tres resultados visibles y mandámelos por el chat.';}
+};
+</script></body></html>
