@@ -1,8 +1,5 @@
-/*
- * CruciAula — Versión 0.4 · Editor docente autenticado y sincronizado con Firebase.
- * El modo alumno / QR aún es una demostración local, no un examen publicado.
- * Independiente de Roscoaula.
- */
+/* CruciAula 0.6.2: entrada docente directa + portada QR y entregas con soluciones privadas.
+ * Independiente de Roscoaula. */
 'use strict';
 
 const PREGUNTAS = [
@@ -27,6 +24,14 @@ const STORAGE = 'cruciaula_demo_resultados_v1'; // Conserva las partidas previas
 const PUZZLE_STORAGE = 'cruciaula_demo_crucigramas_v1';
 const SAMPLE_ID = 'deportes-ejemplo';
 const SAMPLE = {id:SAMPLE_ID,title:'Deportes y periodismo',description:'Básquet, automovilismo y comunicación deportiva',questions:PREGUNTAS};
+// El parámetro ?juego= aparece únicamente cuando se escanea el QR del profesor.
+const sharedPuzzleId = (new URLSearchParams(window.location.search).get('juego')||'').trim();
+let guestPuzzle = null;
+let qrGuest = false;
+let sharePuzzleId = null;
+let authReadyResolve;
+const authReady = new Promise(resolve => { authReadyResolve = resolve; });
+
 // Sin iniciar sesión se muestra únicamente un crucigrama de DEMO, no el material docente.
 let puzzles = [SAMPLE];
 let cloudEntries=[];
@@ -43,23 +48,35 @@ function localPuzzles(){
 }
 async function loadCloud(){
   if(!isTeacher())return;
-  const [data,records]=await Promise.all([
+  const [data,records,submissions,solutions]=await Promise.all([
     cloud.db.collection('crucigramas').get(),
-    cloud.db.collection('resultados').get()
+    cloud.db.collection('resultados').get(),
+    cloud.db.collection('entregas').get(),
+    cloud.db.collection('soluciones').get()
   ]);
   if(!isTeacher())return;
   puzzles=data.docs.map(doc=>({...doc.data(),id:doc.id})).sort((a,b)=>a.title.localeCompare(b.title,'es'));
-  cloudEntries=records.docs.map(doc=>doc.data()).filter(e=>Number.isFinite(e.seconds));
+  const keys=new Map(solutions.docs.map(doc=>[doc.id,doc.data().answers||{}]));
+  const onlineEntries=submissions.docs.map(doc=>{
+    const s=doc.data(),sol=keys.get(s.puzzleId)||{},correctKeys=Object.keys(sol);
+    const incorrect=correctKeys.filter(id=>normalize(s.answers?.[id]||'')!==sol[id]).map(id=>({clue:'Pista '+id,given:s.answers?.[id]||'',solution:sol[id]}));
+    const start=s.startedAt?.toMillis?.(),end=s.submittedAt?.toMillis?.();
+    return {puzzleId:s.puzzleId,name:s.name,course:s.course,total:correctKeys.length,
+      correct:correctKeys.length-incorrect.length,incorrect,
+      seconds:Number.isFinite(start)&&Number.isFinite(end)?Math.max(0,Math.floor((end-start)/1000)):NaN,
+      date:new Date(end||Date.now()).toISOString(),at:end||Date.now()};
+  }).filter(e=>Number.isFinite(e.seconds));
+  cloudEntries=records.docs.map(doc=>doc.data()).filter(e=>Number.isFinite(e.seconds)).concat(onlineEntries);
   refreshPuzzleSelector();renderTeacher();
-  $('#cloud-status').textContent=`Sincronizado · ${puzzles.length} crucigramas y ${cloudEntries.length} resultados de prueba.`;
+  $('#cloud-status').textContent=`Sincronizado · ${puzzles.length} crucigramas y ${cloudEntries.length} resultados.`;
 }
 
-function activePuzzle(){return puzzles.find(p=>p.id===state.activePuzzleId)||puzzles[0]}
+function activePuzzle(){return qrGuest ? guestPuzzle : (puzzles.find(p=>p.id===state.activePuzzleId)||puzzles[0])}
 function refreshPuzzleSelector(){
   const selector=$('#select-puzzle');const previous=selector.value;selector.replaceChildren();
   puzzles.forEach(p=>{const option=document.createElement('option');option.value=p.id;option.textContent=p.title;selector.append(option)});
   selector.value=(state.activePuzzleId&&puzzles.some(p=>p.id===state.activePuzzleId)?state.activePuzzleId:(puzzles.some(p=>p.id===previous)?previous:puzzles[0]?.id||''));
-  $('#form-student button[type=submit]').disabled=!puzzles.length;
+  $('#form-student button[type=submit]').disabled=qrGuest ? !guestPuzzle : !puzzles.length;
 }
 
 const normalize = (s) => String(s ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^A-Za-z]/g,'').toUpperCase();
@@ -68,7 +85,19 @@ const htmlSafe = (s) => String(s).replace(/[&<>"']/g, ch=>({'&':'&amp;','<':'&lt
 const timeLabel = (seconds) => `${String(Math.floor(seconds/60)).padStart(2,'0')}:${String(seconds%60).padStart(2,'0')}`;
 
 function toast(msg){const el=$('#toast');el.textContent=msg;el.classList.add('on');clearTimeout(toast._tid);toast._tid=setTimeout(()=>el.classList.remove('on'),3600)}
-function show(name){if(['teacher','editor'].includes(name)&&!isTeacher())name='login';$$('.screen').forEach(e=>e.classList.remove('active'));$(`#screen-${name}`).classList.add('active');window.scrollTo({top:0,behavior:'instant'});}
+function show(name){
+  // La URL general es el área docente; la portada de estudiantes SOLO existe en ?juego=.
+  if(name==='home' && !sharedPuzzleId)name=isTeacher()?'teacher':'login';
+  if(['teacher','editor'].includes(name)&&!isTeacher())name='login';
+  $$('.screen').forEach(e=>e.classList.remove('active'));
+  $(`#screen-${name}`).classList.add('active');
+  window.scrollTo({top:0,behavior:'instant'});
+}
+function finishStartup(){
+  // Quitar el protector únicamente después de decidir qué pantalla debe verse.
+  document.documentElement.classList.remove('boot-pending');
+  $('#startup-splash').hidden=true;
+}
 function stopClock(){clearInterval(state.interval);state.interval=null;state.running=false}
 function updateClock(){state.elapsed=Math.floor((Date.now()-state.startedAt)/1000);$('#timer-text').textContent=timeLabel(state.elapsed)}
 function startClock(){stopClock();state.startedAt=Date.now();state.elapsed=0;state.running=true;updateClock();state.interval=setInterval(updateClock,300)}
@@ -150,7 +179,13 @@ function newGame(){
   const selected=activePuzzle();
   if(!selected){toast('Primero hay que crear un crucigrama.');show('home');return}
   state.activePuzzleId=selected.id;
-  const puzzle=buildCrossword(selected.questions);
+  // En QR se usa la grilla ya publicada SIN soluciones ni respuestas.
+  const puzzle=qrGuest ? {
+    ...selected.layout,
+    cells:new Map(selected.layout.words.flatMap(w=>Array.from({length:w.length},(_,i)=>[
+      key(w.row+(w.dir==='v'?i:0),w.col+(w.dir==='h'?i:0)),true
+    ]))),unused:[]
+  } : buildCrossword(selected.questions);
   if(!puzzle.words.length){toast('Este crucigrama no tiene palabras para jugar.');return}
   $('#game-title').textContent=selected.title;
   state.words=puzzle.words;state.cells=puzzle.cells;state.rows=puzzle.rows;state.cols=puzzle.cols;
@@ -238,8 +273,44 @@ async function finish(){
   const total=state.words.length;
   const pending=state.words.filter(w=>!(state.answers.get(w.id)||'').length).length;
   if(pending && !confirm(`Hay ${pending} ${pending===1?'respuesta sin completar':'respuestas sin completar'}. ¿Querés entregar de todos modos?`))return;
-  // El chequeo de aciertos sucede solamente al ENTREGAR, nunca durante la partida.
-  updateClock();stopClock();
+  updateClock();
+  if(qrGuest){
+    const finishButton=$('#finish-game');finishButton.disabled=true;
+    try{
+      const user=cloud.auth.currentUser;
+      if(!user||!user.isAnonymous)throw Error('Abrí el enlace de alumno en una ventana de incógnito.');
+      const answers=Object.fromEntries(state.words.map(w=>[String(w.id),state.answers.get(w.id)||'']));
+      const entryId=`${state.activePuzzleId}_${user.uid}`;
+      const startSnap=await cloud.db.collection('inicios').doc(entryId).get();
+      if(!startSnap.exists)throw Error('No se encontró el inicio de la partida.');
+      await cloud.db.collection('entregas').doc(entryId).set({
+        puzzleId:state.activePuzzleId,uid:user.uid,
+        name:`${state.student.first} ${state.student.last}`,course:state.student.course||'',
+        answers,startedAt:startSnap.data().startedAt,
+        submittedAt:firebase.firestore.FieldValue.serverTimestamp()
+      });
+      stopClock();
+      const solutionsSnap=await cloud.db.collection('soluciones').doc(state.activePuzzleId).get();
+      if(!solutionsSnap.exists)throw Error('Se registró tu entrega, pero no se pudieron recuperar las correcciones.');
+      const solutions=solutionsSnap.data().answers||{};
+      const incorrect=state.words.filter(w=>answers[String(w.id)]!==solutions[String(w.id)]).map(w=>({
+        number:w.number,direction:w.dir,clue:w.clue,given:answers[String(w.id)]||'',solution:solutions[String(w.id)]||'(consultar al profesor)'
+      }));
+      const sentSnap=await cloud.db.collection('entregas').doc(entryId).get();
+      const startMs=startSnap.data().startedAt?.toMillis?.();
+      const finishMs=sentSnap.data()?.submittedAt?.toMillis?.();
+      const serverSeconds=Number.isFinite(startMs)&&Number.isFinite(finishMs)?Math.max(0,Math.floor((finishMs-startMs)/1000)):state.elapsed;
+      const entry={puzzleId:state.activePuzzleId,name:`${state.student.first} ${state.student.last}`,course:state.student.course,seconds:serverSeconds,
+        total,correct:total-incorrect.length,incorrect,at:Date.now(),date:new Date().toISOString()};
+      renderRanking(false,entry);show('results');
+      toast('¡Entrega guardada online!');
+    }catch(err){
+      console.error('Entrega de alumno:',err);
+      alert(`No se pudo completar la entrega: ${err.message}. Si ya se guardó, no vuelvas a enviarla: avisale a Juan.`);
+    }finally{finishButton.disabled=false;}
+    return;
+  }
+  stopClock();
   const incorrect=state.words.filter(w=>state.answers.get(w.id)!==w.answer).map(w=>({
     number:w.number,direction:w.dir,clue:w.clue,given:state.answers.get(w.id)||'',solution:w.answer
   }));
@@ -252,7 +323,6 @@ async function finish(){
       cloudEntries.push(entry);
     }catch(err){console.error(err);toast('No pudimos guardar esta prueba en Firebase. Revisá la conexión.');}
   }else{
-    // Alumnos: DEMO local. No guarda nada en Firestore hasta habilitar permisos seguros.
     try{
       const previous=JSON.parse(localStorage.getItem(STORAGE)||'[]');
       previous.push(entry);localStorage.setItem(STORAGE,JSON.stringify(previous.slice(-500)));
@@ -291,6 +361,9 @@ function renderRanking(onlyRanking=false,recent=null){
     if(!previous||entry.seconds<previous.seconds)bestByStudent.set(studentKey,entry);
   }
   const ranking=[...bestByStudent.values()].sort((a,b)=>a.seconds-b.seconds||a.at-b.at);
+  $('#results-ranking-header').hidden=qrGuest;
+  $('#ranking-podium').hidden=qrGuest;
+  $('#ranking-rest').hidden=qrGuest;
   $('#results-title').textContent=onlyRanking?(isTeacher()?'Clasificación de pruebas del profesor':'Clasificación local'):'¡Crucigrama entregado!';
   $('#result-name').textContent=onlyRanking?`Actividad: ${activePuzzle()?.title||'Sin título'} · ${isTeacher()?'Pruebas sincronizadas en Firebase.':'Pruebas locales de este navegador.'}`:`${recent.name} · ${recent.course||'Sin comisión'}`;
   $('.stat-grid').style.display=onlyRanking?'none':'grid';$('.result-trophy').textContent=onlyRanking?'🏅':'🏆';
@@ -311,13 +384,55 @@ function renderRanking(onlyRanking=false,recent=null){
   });
 }
 
-$('#btn-play').addEventListener('click',()=>{refreshPuzzleSelector();show('register')});
+$('#btn-play').addEventListener('click',()=>{
+  if(qrGuest){
+    // QR → portada → Jugar → nombre, apellido y comisión → comenzar.
+    if(!guestPuzzle){toast('Todavía se está cargando la actividad.');return}
+    $('#select-puzzle').replaceChildren(new Option(guestPuzzle.title,guestPuzzle.id));
+    $('#shared-activity-info').textContent='Actividad: '+guestPuzzle.title;
+    $('#shared-activity-info').hidden=false;
+    $('#select-puzzle-label').hidden=true;
+    $('#select-puzzle').hidden=true;
+    $('#course').required=true;
+    $('#course-required-label').textContent='(obligatorio)';
+    $('#form-student button[type=submit]').disabled=false;
+  }else{
+    refreshPuzzleSelector();
+    $('#select-puzzle-label').hidden=false;
+    $('#select-puzzle').hidden=false;
+    $('#shared-activity-info').hidden=true;
+    $('#course').required=false;
+    $('#course-required-label').textContent='(opcional en la demo)';
+  }
+  show('register');
+});
 $('#nav-home').addEventListener('click',()=>show('home'));
-$('#nav-how').addEventListener('click',()=>toast('Los QR todavía no están activos: esta es una DEMO local. Al jugar no se revela ningún acierto hasta que entregás. Gana el menor tiempo con todas correctas.'));
+$('#nav-how').addEventListener('click',()=>toast('Los alumnos entran por QR, tocan Jugar, cargan nombre, apellido y comisión, y después comienza el cronómetro. No se revelan aciertos hasta entregar.'));
 $('#nav-teacher').addEventListener('click',()=>{if(isTeacher()){renderTeacher();show('teacher')}else{show('login');$('#teacher-email').focus()}});
 $('#btn-ranking-home').addEventListener('click',()=>{state.activePuzzleId=state.activePuzzleId||puzzles[0]?.id;if(!state.activePuzzleId){toast('No hay crucigramas todavía.');return}renderRanking(true);show('results')});
 $$('[data-go="home"]').forEach(el=>el.addEventListener('click',()=>show('home')));
-$('#form-student').addEventListener('submit',e=>{e.preventDefault();const first=$('#first-name').value.trim(),last=$('#last-name').value.trim(),course=$('#course').value.trim();if(!first||!last){toast('Completá nombre y apellido.');return}state.student={first,last,course};state.activePuzzleId=$('#select-puzzle').value;newGame()});
+$('#form-student').addEventListener('submit',async e=>{
+  e.preventDefault();
+  const first=$('#first-name').value.trim(),last=$('#last-name').value.trim(),course=$('#course').value.trim();
+  if(!first||!last||(qrGuest&&!course)){toast('Completá nombre, apellido y curso/comisión.');return}
+  const submit=$('#form-student button[type=submit]');submit.disabled=true;
+  state.student={first,last,course};state.activePuzzleId=qrGuest ? guestPuzzle.id : $('#select-puzzle').value;
+  try{
+    if(qrGuest){
+      const user=cloud.auth.currentUser;
+      if(!user?.isAnonymous)throw Error('Abrí el QR en otra ventana sin iniciar sesión como profesor.');
+      const entryId=`${guestPuzzle.id}_${user.uid}`;
+      const startRef=cloud.db.collection('inicios').doc(entryId);
+      const old=await cloud.db.collection('entregas').doc(entryId).get();
+      if(old.exists)throw Error('Esta actividad ya fue entregada desde este dispositivo.');
+      const prev=await startRef.get();
+      if(prev.exists)throw Error('Ya habías iniciado esta actividad. No podés reiniciar el reloj con este usuario.');
+      await startRef.set({uid:user.uid,puzzleId:guestPuzzle.id,startedAt:firebase.firestore.FieldValue.serverTimestamp()});
+    }
+    newGame();
+  }catch(err){console.error('Inicio de partida:',err);alert('No se pudo comenzar: '+err.message)}
+  finally{submit.disabled=false}
+});
 $('#tab-across').addEventListener('click',()=>{state.direction='h';selectWord(state.words.find(w=>w.dir==='h')?.id)});
 $('#tab-down').addEventListener('click',()=>{state.direction='v';selectWord(state.words.find(w=>w.dir==='v')?.id)});
 $('#fill-answer').addEventListener('click',fillAnswer);
@@ -325,10 +440,10 @@ $('#clue-answer').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDe
 $('#clear-answer').addEventListener('click',()=>{$('#clue-answer').value='';$('#clue-answer').focus()});
 $('#finish-game').addEventListener('click',finish);
 $('#show-wrong').addEventListener('click',()=>{const p=$('#wrong-answers-panel'),opening=p.hidden;p.hidden=!opening;$('#show-wrong').setAttribute('aria-expanded',String(opening));});
-$('#leave-game').addEventListener('click',()=>{if(confirm('¿Querés salir? Se perderá el avance de esta partida.')){stopClock();show('home')}});
+$('#leave-game').addEventListener('click',()=>{if(qrGuest){alert('Si salís, el tiempo sigue contando y esta partida no se reinicia. Terminá y entregá para ver tu puntaje.');return}if(confirm('¿Querés salir? Se perderá el avance de esta partida.')){stopClock();show('home')}});
 $('#back-to-home').addEventListener('click',()=>show('home'));
 $('#play-again').addEventListener('click',()=>{refreshPuzzleSelector();show('register')});
-$('#brand').addEventListener('click',e=>{e.preventDefault();if(state.running&& !confirm('¿Salir de la partida en curso?'))return;stopClock();show('home')});
+$('#brand').addEventListener('click',e=>{e.preventDefault();if(state.running&&qrGuest){toast('Terminá y entregá antes de salir de la partida.');return}if(state.running&&!confirm('¿Salir de la partida en curso?'))return;stopClock();show('home')});
 // ---- Panel docente: acceso real Firebase Auth y guardado en Cloud Firestore. ----
 function loginMessage(message,isError=false){const status=$('#login-status');status.textContent=message;status.classList.toggle('login-error',isError);}
 $('#form-login').addEventListener('submit',async e=>{
@@ -345,16 +460,20 @@ $('#form-login').addEventListener('submit',async e=>{
   }finally{button.disabled=false;}
 });
 $('#teacher-logout').addEventListener('click',async()=>{
-  try{await cloud.auth.signOut();show('home');toast('Sesión docente cerrada.');}
+  try{await cloud.auth.signOut();teacherUser=null;show('login');toast('Sesión docente cerrada.');}
   catch(err){toast('No se pudo cerrar sesión. Probá de nuevo.');}
 });
 if(cloud.ready){
   cloud.auth.onAuthStateChanged(async user=>{
     authPending=false;
+    if(authReadyResolve){authReadyResolve();authReadyResolve=null;}
     if(user && user.uid===cloud.TEACHER_UID){
       teacherUser=user;loginMessage('Ingreso autorizado.');
       $('#cloud-status').textContent='Cargando crucigramas online…';
-      show('teacher');
+      if(!sharedPuzzleId){
+        puzzles=[];refreshPuzzleSelector();renderTeacher();
+        show('teacher');finishStartup();
+      }
       try{await loadCloud();}catch(err){
         console.error('Error de Firestore:',err);
         $('#cloud-status').textContent='No se pudo sincronizar. Comprobá conexión y reglas de Firestore.';
@@ -362,12 +481,21 @@ if(cloud.ready){
       }
     }else{
       teacherUser=null;puzzles=[SAMPLE];cloudEntries=[];refreshPuzzleSelector();
-      if(user){await cloud.auth.signOut();loginMessage('Cuenta no autorizada para este panel.',true)}
+      if(user && !user.isAnonymous){await cloud.auth.signOut();loginMessage('Cuenta no autorizada para este panel.',true)}
       else loginMessage('Usá el correo y la contraseña del profesor.');
-      if(['teacher','editor'].some(s=>$('#screen-'+s).classList.contains('active')))show('login');
+      if(!sharedPuzzleId){show('login');finishStartup();}
     }
-  },error=>{authPending=false;loginMessage('No se pudo verificar la sesión. Comprobá tu conexión.',true)});
-}else loginMessage(cloud.reason,true);
+  },error=>{
+    authPending=false;
+    loginMessage('No se pudo verificar la sesión. Comprobá tu conexión.',true);
+    if(!sharedPuzzleId){show('login');finishStartup();}
+    if(authReadyResolve){authReadyResolve();authReadyResolve=null;}
+  });
+}else {
+  loginMessage(cloud.reason,true);
+  if(!sharedPuzzleId){show('login');finishStartup();}
+  if(authReadyResolve){authReadyResolve();authReadyResolve=null;}
+}
 
 let editingId=null;
 const editorRows=()=>[...$('#editor-questions').querySelectorAll('.question-row')];
@@ -414,7 +542,14 @@ async function saveEditor(event){
   if(index>=0 && entries().some(x=>x.puzzleId===id) && !confirm('Este crucigrama ya tiene resultados de prueba. Si cambiás las respuestas, esos puntajes corresponderán a una versión anterior. ¿Guardar de todos modos?'))return;
   const submit=$('#editor-form button[type="submit"]');submit.disabled=true;
   try{
-    await cloud.db.collection('crucigramas').doc(id).set(puzzle);
+    // Si Juan cambia un crucigrama publicado, invalidamos su QR hasta republicarlo.
+    // Esto evita servir una versión vieja con soluciones que ya no corresponden.
+    const batch=cloud.db.batch();
+    batch.set(cloud.db.collection('crucigramas').doc(id),puzzle);
+    if(puzzles[index]?.published){
+      batch.set(cloud.db.collection('publicos').doc(id),{published:false},{merge:true});
+    }
+    await batch.commit();
     if(index>=0)puzzles[index]=puzzle;else puzzles.push(puzzle);
     puzzles.sort((a,b)=>a.title.localeCompare(b.title,'es'));
     state.activePuzzleId=id;refreshPuzzleSelector();renderTeacher();show('teacher');
@@ -436,11 +571,15 @@ function renderTeacher(){
     const description=document.createElement('p');description.textContent=p.description||'Sin descripción';
     const count=document.createElement('span');count.className='teacher-pill';count.textContent=`${p.questions.length} preguntas`;
     const actions=document.createElement('div');actions.className='teacher-card-actions';
-    actions.append(teacherButton('✎ Editar',()=>openEditor(p.id)),teacherButton('▶ Probar',()=>{state.activePuzzleId=p.id;refreshPuzzleSelector();show('register')},'btn-primary'),teacherButton('Eliminar',async()=>{
+    actions.append(teacherButton('✎ Editar',()=>openEditor(p.id)),teacherButton('▶ Probar',()=>{state.activePuzzleId=p.id;refreshPuzzleSelector();show('register')},'btn-primary'),teacherButton(p.published?'▦ Ver QR':'▦ Publicar QR',()=>publishOrShare(p)),teacherButton('Eliminar',async()=>{
       if(!isTeacher())return;
       if(!confirm(`¿Eliminar «${p.title}» de Firebase? Esta acción borrará las preguntas de todos los dispositivos. Los resultados históricos quedarán conservados.`))return;
       try{
-        await cloud.db.collection('crucigramas').doc(p.id).delete();
+        // Quitar el acceso público y el crucigrama docente en una sola operación.
+        const batch=cloud.db.batch();
+        batch.delete(cloud.db.collection('publicos').doc(p.id));
+        batch.delete(cloud.db.collection('crucigramas').doc(p.id));
+        await batch.commit();
         puzzles=puzzles.filter(x=>x.id!==p.id);
         if(state.activePuzzleId===p.id)state.activePuzzleId=puzzles[0]?.id||null;
         refreshPuzzleSelector();renderTeacher();toast('Crucigrama eliminado de Firebase.');
@@ -452,7 +591,30 @@ function renderTeacher(){
 }
 function renderTeacherResults(){
   const target=$('#teacher-results-table');target.replaceChildren();const data=entries().slice().reverse();
-  if(!data.length){const msg=document.createElement('p');msg.className='results-summary';msg.textContent='Todavía no hay resultados de prueba. Los resultados de alumnos llegarán al habilitar los QR y el acceso público seguro.';target.append(msg);return}
+  if(!data.length){const msg=document.createElement('p');msg.className='results-summary';msg.textContent='Todavía no hay resultados registrados.';target.append(msg);return}
+  // Podios privados por actividad: solo participaciones 100 % correctas y menor tiempo.
+  const byPuzzle=new Map();
+  for(const entry of data.filter(e=>e.total>0&&e.correct===e.total)){
+    if(!byPuzzle.has(entry.puzzleId))byPuzzle.set(entry.puzzleId,new Map());
+    const perStudent=byPuzzle.get(entry.puzzleId),studentKey=`${normalize(entry.name)}|${normalize(entry.course)}`;
+    if(!perStudent.has(studentKey)||entry.seconds<perStudent.get(studentKey).seconds)perStudent.set(studentKey,entry);
+  }
+  if(byPuzzle.size){
+    const wrap=document.createElement('div');wrap.className='teacher-leaderboards';
+    for(const [puzzleId,students] of byPuzzle){
+      const best=[...students.values()].sort((a,b)=>a.seconds-b.seconds||a.at-b.at).slice(0,3);
+      const section=document.createElement('section');section.className='teacher-leaderboard';
+      const h=document.createElement('h3');h.textContent='🏅 Top 3 · '+(puzzles.find(p=>p.id===puzzleId)?.title||'Actividad anterior');section.append(h);
+      best.forEach((item,i)=>{
+        const row=document.createElement('div');row.className=`rank-card ${['gold','silver','bronze'][i]}`;
+        const medal=document.createElement('span');medal.className='rank-medal';medal.textContent=['🥇','🥈','🥉'][i];
+        const name=document.createElement('strong');name.textContent=item.name;
+        const time=document.createElement('strong');time.className='rank-time';time.textContent=timeLabel(item.seconds);
+        row.append(medal,name,time);section.append(row);
+      });wrap.append(section);
+    }
+    target.append(wrap);
+  }
   const scroll=document.createElement('div');scroll.className='results-scroll';
   const table=document.createElement('table');table.className='local-results-table';
   const thead=document.createElement('thead');const hrow=document.createElement('tr');
@@ -515,6 +677,120 @@ $('#recover-local').addEventListener('click',async()=>{
     await loadCloud();toast('¡Crucigramas anteriores recuperados en Firebase!');
   }catch(err){console.error(err);toast('No se pudo recuperar. Descargá una copia de seguridad antes de reintentar.');}
 });
+// Publicación controlada: el documento público NO contiene soluciones.
+async function publishOrShare(p){
+  if(!isTeacher())return;
+  if(!p.published){
+    const grid=buildCrossword(p.questions);
+    if(grid.unused.length){alert('Faltan palabras para cruzar: '+grid.unused.join(', '));return}
+    if(!confirm(`¿Publicar «${p.title}» para que los alumnos entren por QR?`))return;
+    const layout={rows:grid.rows,cols:grid.cols,words:grid.words.map(w=>({id:w.id,row:w.row,col:w.col,dir:w.dir,length:w.length,number:w.number,clue:w.clue}))};
+    const solutions=Object.fromEntries(grid.words.map(w=>[String(w.id),w.answer]));
+    try{
+      const batch=cloud.db.batch();
+      batch.set(cloud.db.collection('publicos').doc(p.id),{id:p.id,title:p.title,description:p.description||'',published:true,layout});
+      batch.set(cloud.db.collection('soluciones').doc(p.id),{answers:solutions});
+      batch.update(cloud.db.collection('crucigramas').doc(p.id),{published:true});
+      await batch.commit();
+      p.published=true;renderTeacher();
+    }catch(e){console.error(e);alert('No se pudo publicar: '+e.message);return}
+  }
+  sharePuzzleId=p.id;
+  const link=new URL(window.location.href);link.search='';link.hash='';link.searchParams.set('juego',p.id);
+  $('#share-link').value=link.href;
+  $('#share-modal').hidden=false;
+  const display=$('#share-qr');display.replaceChildren();
+  if(window.QRCode){
+    new QRCode(display,{text:link.href,width:200,height:200,correctLevel:QRCode.CorrectLevel.M});
+  }else{
+    display.textContent='No se cargó el generador de QR. Copiá el enlace o volvé a abrir la página con internet.';
+  }
+}
+$('#share-close').addEventListener('click',()=>{$('#share-modal').hidden=true});
+$('#share-copy').addEventListener('click',async()=>{
+  const link=$('#share-link').value;
+  try{await navigator.clipboard.writeText(link);toast('Enlace copiado.')}catch{const input=$('#share-link');input.focus();input.select();toast('Copiá el enlace seleccionado con Ctrl+C.');}
+});
+
+// Acceso vía enlace exclusivo de un crucigrama; las pistas se publican SIN respuestas.
+async function loadStudentAccess(puzzleId){
+  if(!cloud.ready){
+    $('#home-mode').textContent='SIN CONEXIÓN';
+    $('#home-card-title').textContent='No pudimos conectar Firebase';
+    $('#home-card-detail').textContent='Comprobá tu conexión y volvé a abrir el QR.';
+    $('#btn-play').disabled=true;
+    show('home');finishStartup();return;
+  }
+  try{
+    if(!cloud.auth.currentUser){await cloud.auth.signInAnonymously();}
+    if(cloud.auth.currentUser?.uid===cloud.TEACHER_UID){
+      throw Error('Para probar el QR como alumno, abrí este enlace en una ventana de incógnito.');
+    }
+    if(!cloud.auth.currentUser?.isAnonymous)throw Error('No se pudo habilitar el acceso del alumno.');
+    const doc=await cloud.db.collection('publicos').doc(puzzleId).get();
+    if(!doc.exists)throw Error('Este crucigrama no está publicado o su enlace ya no es válido.');
+    guestPuzzle={...doc.data(),id:doc.id};qrGuest=true;
+    if(!guestPuzzle.layout?.words?.length)throw Error('Este crucigrama no tiene grilla.');
+    state.activePuzzleId=guestPuzzle.id;
+    const previous=await cloud.db.collection('entregas').doc(`${guestPuzzle.id}_${cloud.auth.currentUser.uid}`).get();
+    if(previous.exists){
+      const sub=previous.data();
+      const sol=await cloud.db.collection('soluciones').doc(guestPuzzle.id).get();
+      const words=guestPuzzle.layout.words;
+      const correctMap=sol.data()?.answers||{};
+      const incorrect=words.filter(w=>normalize(sub.answers?.[String(w.id)]||'')!==correctMap[String(w.id)]).map(w=>({number:w.number,direction:w.dir,clue:w.clue,given:sub.answers?.[String(w.id)]||'',solution:correctMap[String(w.id)]||''}));
+      const start=sub.startedAt?.toMillis?.(),end=sub.submittedAt?.toMillis?.();
+      state.elapsed=(Number.isFinite(start)&&Number.isFinite(end))?Math.max(0,Math.floor((end-start)/1000)):0;
+      const entry={name:sub.name,course:sub.course,total:words.length,correct:words.length-incorrect.length,incorrect,seconds:state.elapsed};
+      $('#home-mode').textContent='ACTIVIDAD FINALIZADA';
+      $('#home-card-title').textContent=guestPuzzle.title;
+      $('#home-card-detail').textContent='Ya entregaste esta actividad. Podés revisar tus resultados.';
+      $('#home-hint').textContent='Tu entrega ya quedó registrada.';
+      $('#btn-play').textContent='✓ Ver mis resultados';
+      $('#btn-play').onclick=()=>{renderRanking(false,entry);show('results')};
+      $('#btn-ranking-home').hidden=true;
+      $('#nav-teacher').hidden=true;
+      $('#btn-play').disabled=false;
+      show('home');
+      $('#play-again').hidden=true;
+    }else{
+      $('#play-again').hidden=true;
+      $('#home-mode').textContent='ACTIVIDAD ASIGNADA POR TU PROFESOR';
+      $('#home-card-title').textContent=guestPuzzle.title;
+      $('#home-card-detail').textContent=guestPuzzle.description||'¡Bienvenido! Prepará tus conocimientos para completar este crucigrama.';
+      $('#home-hint').textContent='Primero tocá Jugar y completá tus datos. El tiempo comienza cuando presiones «Comenzar crucigrama».';
+      $('#btn-play').innerHTML='▶ &nbsp; Jugar <span aria-hidden="true">→</span>';
+      $('#btn-play').disabled=false;
+      $('#btn-ranking-home').hidden=true;
+      $('#nav-teacher').hidden=true;
+      $('#select-puzzle').replaceChildren(new Option(guestPuzzle.title,guestPuzzle.id));
+      $('#select-puzzle').hidden=true;
+      $('#select-puzzle-label').hidden=true;
+      $('#shared-activity-info').textContent='Actividad: '+guestPuzzle.title;
+      $('#shared-activity-info').hidden=false;
+      $('#course').required=true;
+      $('#course-required-label').textContent='(obligatorio)';
+      show('home');
+    }
+  }catch(e){console.error('QR:',e);
+    $('#home-mode').textContent='NO SE PUDO ABRIR LA ACTIVIDAD';
+    $('#home-card-title').textContent='Enlace no disponible';
+    $('#home-card-detail').textContent=e.message;
+    $('#home-hint').textContent='Pedile al profesor un enlace válido.';
+    $('#btn-play').disabled=true;show('home');
+  }finally{finishStartup();}
+}
+if(sharedPuzzleId){
+  $('#home-mode').textContent='CARGANDO ACTIVIDAD';
+  $('#home-card-title').textContent='Preparando tu crucigrama…';
+  $('#home-card-detail').textContent='Estamos buscando la actividad que compartió tu profesor.';
+  $('#home-hint').textContent='No hace falta crear una cuenta para jugar.';
+  $('#btn-play').textContent='Cargando…';
+  $('#btn-play').disabled=true;
+  $('#btn-ranking-home').hidden=true;
+  $('#nav-teacher').hidden=true;
+  authReady.then(()=>loadStudentAccess(sharedPuzzleId));
+}
 refreshPuzzleSelector();
 // Ayuda al QA automático sin exponer datos o privilegiar a ningún jugador.
 window.CruciAulaDemo={buildCrossword,source:PREGUNTAS,getPuzzles:()=>puzzles};

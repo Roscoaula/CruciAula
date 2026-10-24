@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="es-AR">
+<html lang="es-AR" class="boot-pending">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -8,6 +8,17 @@
   <link rel="stylesheet" href="estilos.css">
 </head>
 <body>
+  <!-- Muestra una espera neutra mientras Firebase determina si corresponde
+       el panel docente o la portada de un enlace QR. -->
+  <div id="startup-splash" role="status" aria-live="polite">
+    <div class="startup-content">
+      <div class="startup-emblem" aria-hidden="true">▦</div>
+      <strong>Cruci<span>Aula</span></strong>
+      <p>Abriendo tu espacio…</p>
+      <span class="startup-spinner" aria-hidden="true"></span>
+      <small>Si no avanza, comprobá tu conexión y actualizá.</small>
+    </div>
+  </div>
   <header class="topbar">
     <a class="brand" href="#inicio" id="brand" aria-label="CruciAula: ir al inicio">
       <svg class="brand-mark" width="34" height="34" viewBox="0 0 40 40" fill="none" aria-hidden="true"><rect x="3" y="3" width="14" height="14" rx="2" stroke="currentColor" stroke-width="3"/><rect x="17" y="3" width="14" height="14" rx="2" stroke="currentColor" stroke-width="3"/><rect x="3" y="17" width="14" height="14" rx="2" stroke="currentColor" stroke-width="3"/><rect x="17" y="17" width="14" height="14" rx="2" stroke="currentColor" stroke-width="3"/><path d="M17 10h14M10 17v14M24 3v28" stroke="currentColor" stroke-width="2"/></svg>
@@ -22,7 +33,7 @@
 
   <main>
     <!-- INICIO -->
-    <section id="screen-home" class="screen active" aria-labelledby="home-title">
+    <section id="screen-home" class="screen" aria-labelledby="home-title">
       <div class="hero">
         <div class="doodle doodle-ball" aria-hidden="true"><svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="40"/><path d="M12 50h76M50 10v80M20 23c44 14 48 41 60 54M80 23C36 37 32 64 20 77"/></svg></div>
         <div class="doodle doodle-mic" aria-hidden="true"><svg viewBox="0 0 100 110"><rect x="32" y="10" width="36" height="52" rx="18"/><path d="M22 44a28 28 0 0 0 56 0M50 72v27M31 99h38M32 20l36 32M35 36l29 18M50 10v52"/></svg></div>
@@ -40,11 +51,11 @@
           <p class="hero-subtitle">Crucigramas interactivos para la facultad de periodismo deportivo</p>
           <div class="home-card">
             <div class="qr-symbol" aria-hidden="true"><svg viewBox="0 0 80 80"><path d="M8 28V8h20M52 8h20v20M72 52v20H52M28 72H8V52"/><rect x="19" y="19" width="16" height="16" rx="2"/><rect x="45" y="19" width="16" height="16" rx="2"/><rect x="19" y="45" width="16" height="16" rx="2"/><path d="M46 46h7v7h-7zM61 45v7h-7v9h7"/></svg></div>
-            <h2>Ingresá con el QR<br>de tu clase</h2>
-            <p>Cuando Juan comparta un crucigrama, el QR te llevará directamente a esa actividad.</p>
-            <span class="demo-label">ESTAMOS EN MODO DEMOSTRACIÓN</span>
+            <span class="demo-label" id="home-mode">MODO PRUEBA LOCAL</span>
+            <h2 id="home-card-title">Ingresá con el QR<br>de tu clase</h2>
+            <p id="home-card-detail">Cuando Juan comparta un crucigrama, el QR te llevará directamente a esa actividad.</p>
             <button class="btn btn-primary big" id="btn-play">🧩 &nbsp; Probar el juego en esta compu <span>→</span></button>
-            <p class="hint-home">Esta prueba todavía no tiene QR real. El botón es únicamente para probar el juego; no será el acceso de los alumnos.</p>
+            <p class="hint-home" id="home-hint">Este botón sirve para probar el juego. Los QR reales se generan en el panel docente para cada actividad publicada.</p>
           </div>
           <button class="text-link" id="btn-ranking-home">🏆 &nbsp; Ver clasificación de esta computadora →</button>
         </div>
@@ -64,13 +75,14 @@
         <span class="step-eyebrow">PASO 1 DE 2 · DATOS DEL ALUMNO</span>
         <span class="round-icon">🎓</span>
         <h1 id="register-title">Completá tus datos</h1>
-        <p class="muted">Ingresá tu nombre para comenzar. El tiempo empieza cuando presiones <strong>«Comenzar»</strong>.</p>
+        <p class="muted" id="register-intro">Ingresá tus datos. El cronómetro empieza recién cuando presiones <strong>«Comenzar crucigrama»</strong>.</p>
+        <p class="activity-name" id="shared-activity-info" hidden></p>
         <form id="form-student" autocomplete="on">
-          <label for="select-puzzle">Crucigrama <span class="muted">(selección solo en esta demo)</span></label>
+          <label for="select-puzzle" id="select-puzzle-label">Crucigrama <span class="muted">(selección solo en esta demo)</span></label>
           <select id="select-puzzle" required></select>
           <label for="first-name">Nombre</label><input id="first-name" name="given-name" autocomplete="given-name" placeholder="Ej.: Sofía" maxlength="55" required>
           <label for="last-name">Apellido</label><input id="last-name" name="family-name" autocomplete="family-name" placeholder="Ej.: Martínez" maxlength="55" required>
-          <label for="course">Curso / comisión <span class="muted">(opcional)</span></label><input id="course" name="organization" placeholder="Ej.: 2.º A" maxlength="40">
+          <label for="course">Curso / comisión <span class="muted" id="course-required-label">(opcional en la demo)</span></label><input id="course" name="organization" placeholder="Ej.: 2.º A" maxlength="40">
           <button class="btn btn-primary block" type="submit">Comenzar crucigrama →</button>
         </form>
       </div>
@@ -95,13 +107,12 @@
           <button class="btn btn-outline block" id="show-wrong" aria-expanded="false" aria-controls="wrong-answers-panel">📋 Respuestas incorrectas <span aria-hidden="true">▾</span></button>
           <div id="wrong-answers-panel" class="wrong-answers-panel" hidden></div>
         </div>
-        <h2 class="ranking-title">🏅 Clasificación de esta computadora</h2><p class="small-note">Solo entran al ranking quienes tengan todas las respuestas correctas. El ranking de pruebas del profesor puede guardarse en Firebase tras iniciar sesión. El ranking público para alumnos llegará con el sistema de QR.</p><div id="ranking-podium" class="podium"></div><div id="ranking-rest"></div><div class="result-buttons"><button class="btn btn-primary" id="back-to-home">Volver al inicio</button><button class="btn btn-outline" id="play-again">Volver a jugar</button></div></div>
+        <div id="results-ranking-header"><h2 class="ranking-title">🏅 Clasificación de esta computadora</h2><p class="small-note">Solo entran al ranking quienes tengan todas las respuestas correctas. Juan puede ver el ranking online de los alumnos en el panel docente.</p></div><div id="ranking-podium" class="podium"></div><div id="ranking-rest"></div><div class="result-buttons"><button class="btn btn-primary" id="back-to-home">Volver al inicio</button><button class="btn btn-outline" id="play-again">Volver a jugar</button></div></div>
     </section>
 
     <!-- ACCESO DOCENTE: Firebase Authentication -->
     <section id="screen-login" class="screen screen-soft" aria-labelledby="login-title">
       <div class="step-card small-card">
-        <button class="back-link" data-go="home">← Volver al inicio</button>
         <span class="round-icon">🔐</span>
         <h1 id="login-title">Acceso docente</h1>
         <p class="muted">Ingresá con la cuenta de profesor que creaste en Firebase.</p>
@@ -120,18 +131,17 @@
     <section id="screen-teacher" class="screen screen-soft" aria-labelledby="teacher-title">
       <div class="teacher-wrap">
         <div class="teacher-heading">
-          <div><button class="back-link" data-go="home">← Volver al inicio</button>
-            <span class="step-eyebrow">CRUCIAULA · PANEL DOCENTE ONLINE</span>
+          <div><span class="step-eyebrow">CRUCIAULA · PANEL DOCENTE ONLINE</span>
             <h1 id="teacher-title">Panel del profesor <span class="teacher-spark">✦</span></h1>
             <p class="muted">Creá, editá y probá tus crucigramas. Se guardan en la nube de Firebase.</p>
           </div>
           <div class="teacher-heading-actions"><button class="btn btn-outline" id="teacher-logout">Cerrar sesión</button><button class="btn btn-primary" id="new-puzzle">+ Crear crucigrama</button></div>
         </div>
-        <div class="teacher-alert"><strong>🔐 Cuenta docente protegida.</strong> Los crucigramas se guardan en Firebase y se comparten entre los dispositivos donde Juan inicia sesión. <strong>Los QR y el acceso de alumnos todavía no están habilitados.</strong> <span id="cloud-status">Conectando…</span></div>
+        <div class="teacher-alert"><strong>🔐 Cuenta docente protegida.</strong> Los crucigramas se guardan en Firebase y se comparten entre los dispositivos donde Juan inicia sesión. <strong>Cada actividad publicada tiene un QR. Las entregas se registran en Firestore.</strong> <span id="cloud-status">Conectando…</span></div>
         <div class="teacher-toolbar"><button class="btn btn-outline" id="recover-local">↥ Recuperar crucigramas anteriores</button><button class="btn btn-outline" id="export-puzzles">⬇ Copia de seguridad</button><label class="btn btn-outline upload-label" for="import-file">⬆ Importar crucigramas <input type="file" id="import-file" accept=".json,application/json" hidden></label></div>
         <div id="teacher-puzzles" class="teacher-grid"></div>
         <div class="teacher-results">
-          <div class="teacher-section-head"><h2>📊 Resultados de pruebas del profesor</h2><span class="muted">Sin entregas públicas todavía</span></div>
+          <div class="teacher-section-head"><h2>📊 Resultados de alumnos y pruebas</h2><span class="muted">Entregas del alumnado y pruebas</span></div>
           <div id="teacher-results-table"></div>
         </div>
       </div>
@@ -152,13 +162,24 @@
     </section>
 
     <!-- INFORMACIÓN -->
-    <section id="screen-info" class="screen screen-soft" aria-labelledby="info-title"><div class="step-card info-card"><button class="back-link" data-go="home">← Volver al inicio</button><span class="round-icon">🔐</span><h1 id="info-title">Acceso docente</h1><p>El panel privado de Juan tendrá creación de crucigramas, QR individuales, notas, tiempos y clasificación.</p><div class="info-alert"><strong>Estamos construyendo la primera versión local.</strong><br>Para que los alumnos no puedan acceder al panel docente, primero hay que configurar inicio de sesión y permisos reales en Firebase. No vamos a simular seguridad con una contraseña dentro del código.</div><button class="btn btn-primary" data-go="home">Entendido, volver al inicio</button></div></section>
+    <section id="screen-info" class="screen screen-soft" aria-labelledby="info-title"><div class="step-card info-card"><button class="back-link" data-go="home">← Volver al inicio</button><span class="round-icon">🔐</span><h1 id="info-title">Acceso docente</h1><p>El panel privado de Juan permite crear crucigramas, publicar QR individuales y consultar tiempos y resultados.</p><div class="info-alert"><strong>Actividad online.</strong><br>Los alumnos entran mediante el QR y completan su nombre y comisión. El panel docente requiere contraseña y reglas específicas en Firebase.</div><button class="btn btn-primary" data-go="home">Entendido, volver al inicio</button></div></section>
   </main>
-  <footer>CruciAula · Panel docente conectado a Firebase · Proyecto independiente de Roscoaula</footer>
+  <footer>CruciAula · Actividades online, panel docente privado · Proyecto independiente de Roscoaula</footer>
+  <div class="share-modal" id="share-modal" hidden>
+    <div class="share-content" role="dialog" aria-modal="true" aria-label="Compartir crucigrama">
+      <button class="share-close" id="share-close" type="button" aria-label="Cerrar">×</button>
+      <h2>📲 Código QR de la actividad</h2><p>Mostralo a los alumnos o compartí el enlace. Al ingresar escribirán su nombre, apellido y comisión.</p>
+      <div id="share-qr" class="share-qr"></div>
+      <label for="share-link">Enlace individual</label><input id="share-link" readonly>
+      <button id="share-copy" class="btn btn-primary block" type="button">Copiar enlace</button>
+      <p class="small-note">Cada alumno tendrá un intento por sesión. Para probar como alumno, usá una ventana de incógnito.</p>
+    </div>
+  </div>
   <div id="toast" role="status" aria-live="polite" class="toast"></div>
   <script defer src="https://www.gstatic.com/firebasejs/13.1.0/firebase-app-compat.js"></script>
   <script defer src="https://www.gstatic.com/firebasejs/13.1.0/firebase-auth-compat.js"></script>
   <script defer src="https://www.gstatic.com/firebasejs/13.1.0/firebase-firestore-compat.js"></script>
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
   <script defer src="firebase-cloud.js"></script>
   <script defer src="app.js"></script>
 </body>

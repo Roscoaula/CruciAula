@@ -45,3 +45,44 @@
 #form-login button {margin-top:10px}
 .login-error {color:#a82342!important;font-weight:650}
 @media(max-width:700px){.teacher-heading-actions {width:100%;justify-content:flex-start}}
+
+/* CruciAula 0.5: QR y ventana para compartir. Misma identidad visual. */
+.share-modal[hidden]{display:none!important}
+.share-modal{position:fixed;inset:0;background:rgba(28,24,68,.72);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px}
+.share-content{position:relative;background:#fff;border-radius:22px;max-width:460px;width:100%;padding:30px;box-shadow:0 20px 60px #14104b60;text-align:center;color:#241d50}
+.share-content h2{margin:0 0 12px;font-size:23px}
+.share-content p{line-height:1.6;font-size:14px}
+.share-qr{background:#fff;border:1px solid #e3defc;padding:12px;border-radius:16px;min-height:226px;display:flex;align-items:center;justify-content:center;margin:16px auto;max-width:230px}
+.share-qr img,.share-qr canvas{margin:auto}
+.share-close{position:absolute;right:14px;top:10px;font-size:25px;border:0;background:transparent;cursor:pointer;color:#514d77}
+#share-link{font-size:12px;width:100%;margin:8px 0 12px;padding:13px;border:1px solid #d6d0f4;border-radius:12px}
+
+.teacher-leaderboards{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:14px;margin:15px 0 24px}
+.teacher-leaderboard{padding:16px;border:1px solid #e1dcf7;background:#fdfcff;border-radius:18px}
+.teacher-leaderboard h3{font-size:15px;margin:0 0 12px;color:#28204f}
+.teacher-leaderboard .rank-card{margin:6px 0;padding:9px;border-radius:12px;display:flex;align-items:center;gap:9px}
+.teacher-leaderboard .rank-card strong{font-size:13px}
+.teacher-leaderboard .rank-time{margin-left:auto}
+
+/* v0.6 · Portada para alumnos que llegan por QR; conserva los dibujitos originales. */
+#home-card-title{overflow-wrap:anywhere}
+#shared-activity-info{color:#6744c3;font-weight:800;background:#f4efff;border-radius:9px;padding:12px 14px;font-size:13px}
+#shared-activity-info[hidden],#select-puzzle[hidden],#select-puzzle-label[hidden],#results-ranking-header[hidden],#ranking-podium[hidden],#ranking-rest[hidden],#nav-teacher[hidden],#btn-ranking-home[hidden]{display:none!important}
+
+/* CruciAula 0.6.2 — Entrada directa al área docente (sin mostrar la portada
+   pública durante la comprobación de sesión). Portada QR sin cambios. */
+.boot-pending .screen{display:none!important}
+#startup-splash{display:none}
+.boot-pending #startup-splash{
+  position:fixed;inset:0;z-index:20000;display:flex;align-items:center;
+  justify-content:center;background:#f5f1ff;padding:24px;text-align:center;
+}
+.startup-content{display:flex;flex-direction:column;align-items:center;gap:10px;color:#30215d}
+.startup-emblem{display:grid;place-items:center;color:#6345c9;font-size:48px;line-height:1}
+.startup-content>strong{font-size:30px;letter-spacing:-.055em;font-weight:850}
+.startup-content>strong span{color:#7048d9}
+.startup-content p{color:#5f5a7c;margin:1px 0 10px;font-size:14px}
+.startup-content small{color:#77708f;margin-top:12px;font-size:11px}
+.startup-spinner{height:27px;width:27px;border:3px solid #ded4fa;
+  border-top-color:#6949d5;border-radius:50%;animation:ca-rotate .7s linear infinite}
+@keyframes ca-rotate{to{transform:rotate(360deg)}}
