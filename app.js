@@ -1,4 +1,4 @@
-/* CruciAula 0.6.3: entrada docente directa + portada QR y entregas con soluciones privadas.
+/* CruciAula: corrección exclusiva del ranking (2026-11-02), basada en 0.6.3: entrada docente directa + portada QR y entregas con soluciones privadas.
  * Independiente de Roscoaula. */
 'use strict';
 
@@ -64,9 +64,9 @@ async function loadCloud(){
     return {puzzleId:s.puzzleId,name:s.name,course:s.course,total:correctKeys.length,
       correct:correctKeys.length-incorrect.length,incorrect,
       seconds:Number.isFinite(start)&&Number.isFinite(end)?Math.max(0,Math.floor((end-start)/1000)):NaN,
-      date:new Date(end||Date.now()).toISOString(),at:end||Date.now()};
+      date:new Date(end||Date.now()).toISOString(),at:end||Date.now(),origin:'alumno'};
   }).filter(e=>Number.isFinite(e.seconds));
-  cloudEntries=records.docs.map(doc=>doc.data()).filter(e=>Number.isFinite(e.seconds)).concat(onlineEntries);
+  cloudEntries=records.docs.map(doc=>({...doc.data(),origin:'profesor'})).filter(e=>Number.isFinite(e.seconds)).concat(onlineEntries);
   refreshPuzzleSelector();renderTeacher();
   $('#cloud-status').textContent=`Sincronizado · ${puzzles.length} crucigramas y ${cloudEntries.length} resultados.`;
 }
@@ -353,27 +353,21 @@ function renderIncorrect(entry){
 }
 function entries(){if(isTeacher())return cloudEntries;try{return JSON.parse(localStorage.getItem(STORAGE)||'[]').filter(x=>Number.isFinite(x.seconds))}catch{return []}}
 function renderRanking(onlyRanking=false,recent=null){
-  // Solo los intentos PERFECTOS participan de la carrera por el menor tiempo.
-  const bestByStudent=new Map();
-  for(const entry of entries().filter(x=>(x.puzzleId||SAMPLE_ID)===state.activePuzzleId && x.total>0 && x.correct===x.total)){
-    const studentKey=`${normalize(entry.name)}|${normalize(entry.course)}`;
-    const previous=bestByStudent.get(studentKey);
-    if(!previous||entry.seconds<previous.seconds)bestByStudent.set(studentKey,entry);
-  }
-  const ranking=[...bestByStudent.values()].sort((a,b)=>a.seconds-b.seconds||a.at-b.at);
+  // Participan todas las entregas, incluso si hubo respuestas equivocadas.
+  const ranking=entries()
+    .filter(x=>(x.puzzleId||SAMPLE_ID)===state.activePuzzleId && x.total>0 && Number.isFinite(x.seconds))
+    .sort(compareResults);
   $('#results-ranking-header').hidden=qrGuest;
   $('#ranking-podium').hidden=qrGuest;
   $('#ranking-rest').hidden=qrGuest;
   $('#results-title').textContent=onlyRanking?(isTeacher()?'Clasificación de pruebas del profesor':'Clasificación local'):'¡Crucigrama entregado!';
   $('#result-name').textContent=onlyRanking?`Actividad: ${activePuzzle()?.title||'Sin título'} · ${isTeacher()?'Pruebas sincronizadas en Firebase.':'Pruebas locales de este navegador.'}`:`${recent.name} · ${recent.course||'Sin comisión'}`;
   $('.stat-grid').style.display=onlyRanking?'none':'grid';$('.result-trophy').textContent=onlyRanking?'🏅':'🏆';
-  $('#result-explain').textContent=onlyRanking?'':recent.correct===recent.total
-    ?'¡Todas las respuestas son correctas! Tu tiempo entra al ranking.'
-    :'El tiempo se detuvo al entregar. Para aparecer en el ranking hay que acertar todas las respuestas.';
+  $('#result-explain').textContent=onlyRanking?'':`Tu resultado fue ${recent.correct}/${recent.total}. El ranking se ordena por aciertos y luego por tiempo.`;
   renderIncorrect(onlyRanking?null:recent);
   if(recent){$('#final-time').textContent=timeLabel(recent.seconds);$('#final-correct').textContent=`${recent.correct}/${recent.total}`;$('#final-percent').textContent=`${Math.round(100*recent.correct/recent.total)}%`;}
   const podium=$('#ranking-podium'),rest=$('#ranking-rest');podium.textContent='';rest.textContent='';
-  if(!ranking.length){const msg=document.createElement('p');msg.textContent='Todavía no hay partidas con todas las respuestas correctas. ¡Podés ser la primera persona!';msg.className='muted';podium.append(msg);return;}
+  if(!ranking.length){const msg=document.createElement('p');msg.textContent='Todavía no hay entregas registradas.';msg.className='muted';podium.append(msg);return;}
   ranking.forEach((item,i)=>{
     const card=document.createElement('div');card.className=`rank-card ${['gold','silver','bronze'][i]||''}`;
     if(recent&&item.at===recent.at)card.classList.add('highlight');
@@ -589,54 +583,94 @@ function renderTeacher(){
   });
   renderTeacherResults();
 }
-function renderTeacherResults(){
-  const target=$('#teacher-results-table');target.replaceChildren();const data=entries().slice().reverse();
-  if(!data.length){const msg=document.createElement('p');msg.className='results-summary';msg.textContent='Todavía no hay resultados registrados.';target.append(msg);return}
-  // Podios privados por actividad: solo participaciones 100 % correctas y menor tiempo.
-  const byPuzzle=new Map();
-  for(const entry of data.filter(e=>e.total>0&&e.correct===e.total)){
-    if(!byPuzzle.has(entry.puzzleId))byPuzzle.set(entry.puzzleId,new Map());
-    const perStudent=byPuzzle.get(entry.puzzleId),studentKey=`${normalize(entry.name)}|${normalize(entry.course)}`;
-    if(!perStudent.has(studentKey)||entry.seconds<perStudent.get(studentKey).seconds)perStudent.set(studentKey,entry);
-  }
-  if(byPuzzle.size){
-    const wrap=document.createElement('div');wrap.className='teacher-leaderboards';
-    for(const [puzzleId,students] of byPuzzle){
-      const best=[...students.values()].sort((a,b)=>a.seconds-b.seconds||a.at-b.at).slice(0,3);
-      const section=document.createElement('section');section.className='teacher-leaderboard';
-      const h=document.createElement('h3');h.textContent='🏅 Top 3 · '+(puzzles.find(p=>p.id===puzzleId)?.title||'Actividad anterior');section.append(h);
-      best.forEach((item,i)=>{
-        const row=document.createElement('div');row.className=`rank-card ${['gold','silver','bronze'][i]}`;
-        const medal=document.createElement('span');medal.className='rank-medal';medal.textContent=['🥇','🥈','🥉'][i];
-        const name=document.createElement('strong');name.textContent=item.name;
-        const time=document.createElement('strong');time.className='rank-time';time.textContent=timeLabel(item.seconds);
-        row.append(medal,name,time);section.append(row);
-      });wrap.append(section);
-    }
-    target.append(wrap);
-  }
-  const scroll=document.createElement('div');scroll.className='results-scroll';
-  const table=document.createElement('table');table.className='local-results-table';
-  const thead=document.createElement('thead');const hrow=document.createElement('tr');
-  ['Alumno','Crucigrama','Aciertos','Tiempo','Fecha','Detalle'].forEach(t=>{const th=document.createElement('th');th.textContent=t;hrow.append(th)});thead.append(hrow);table.append(thead);
-  const body=document.createElement('tbody');
-  for(const item of data){
-    const row=document.createElement('tr');
-    const title=puzzles.find(p=>p.id===(item.puzzleId||SAMPLE_ID))?.title||'Crucigrama anterior';
-    const date=item.date?new Date(item.date).toLocaleDateString('es-AR'):'—';
-    const texts=[item.name||'—',title,`${item.correct}/${item.total}`,timeLabel(item.seconds),date];
-    texts.forEach((value,i)=>{const td=document.createElement('td');td.textContent=value;if(i===0&&item.course){const small=document.createElement('small');small.textContent=item.course;td.append(small)}row.append(td)});
-    const more=document.createElement('td');const details=teacherButton('Ver',()=>{
-      const open=detailRow.hidden;detailRow.hidden=!open;details.textContent=open?'Ocultar':'Ver';
-    });more.append(details);row.append(more);body.append(row);
-    const detailRow=document.createElement('tr');detailRow.hidden=true;const detailCell=document.createElement('td');detailCell.colSpan=6;detailCell.className='teacher-detail';
-    const errors=item.incorrect||[];
-    if(!errors.length){detailCell.textContent='Todas las respuestas correctas.'}
-    else errors.forEach(error=>{const p=document.createElement('p');p.textContent=`${error.clue}: respondió «${error.given||'En blanco'}» · solución «${error.solution}»`;detailCell.append(p)});
-    detailRow.append(detailCell);body.append(detailRow);
-  }
-  table.append(body);scroll.append(table);target.append(scroll);
+function compareResults(a,b){
+  return (Number(b.correct)||0)-(Number(a.correct)||0)
+    || (Number(a.seconds)||0)-(Number(b.seconds)||0)
+    || (Number(a.at)||0)-(Number(b.at)||0);
 }
+function renderTeacherResults(){
+  const target=$('#teacher-results-table');target.replaceChildren();
+  // La lista principal contiene TODAS las entregas del alumnado, incluso incompletas.
+  // No se usa .slice(), ni se agrupan alumnos con el mismo nombre: no se pierde ningún registro.
+  const submissions=cloudEntries.filter(e=>e.origin==='alumno' && e.total>0 && Number.isFinite(e.seconds));
+  const count=$('#teacher-student-count');
+  if(count)count.textContent=`${submissions.length} ${submissions.length===1?'entrega':'entregas'} registradas`;
+  if(!submissions.length){
+    const empty=document.createElement('p');empty.className='results-summary';
+    empty.textContent='Todavía no hay entregas de alumnos. Aparecerán aquí cuando finalicen su crucigrama.';
+    target.append(empty);
+  }else{
+    const grouped=new Map();
+    for(const entry of submissions){
+      if(!grouped.has(entry.puzzleId))grouped.set(entry.puzzleId,[]);
+      grouped.get(entry.puzzleId).push(entry);
+    }
+    const orderedGroups=[...grouped].sort(([idA],[idB])=>
+      (puzzles.find(p=>p.id===idA)?.title||idA).localeCompare(puzzles.find(p=>p.id===idB)?.title||idB,'es'));
+    for(const [puzzleId,records] of orderedGroups){
+      const ranked=records.sort(compareResults);
+      const section=document.createElement('section');section.className='student-ranking-section';
+      const head=document.createElement('div');head.className='student-ranking-heading';
+      const h=document.createElement('h3');h.textContent='🏆 '+(puzzles.find(p=>p.id===puzzleId)?.title||'Crucigrama anterior');
+      const total=document.createElement('span');total.className='student-ranking-total';
+      total.textContent=`${ranked.length} ${ranked.length===1?'entrega':'entregas'}`;
+      head.append(h,total);
+      const hint=document.createElement('p');hint.className='student-ranking-hint';
+      hint.textContent='Orden: más respuestas correctas y, en caso de empate, menor tiempo. Todos los alumnos aparecen en el listado.';
+      const scroll=document.createElement('div');scroll.className='results-scroll';
+      const table=document.createElement('table');table.className='local-results-table student-ranking-table';
+      const header=document.createElement('thead');const headerRow=document.createElement('tr');
+      ['Puesto','Alumno','Curso','Aciertos','Tiempo','Respuestas'].forEach(text=>{
+        const th=document.createElement('th');th.textContent=text;headerRow.append(th);
+      });
+      header.append(headerRow);table.append(header);
+      const body=document.createElement('tbody');
+      ranked.forEach((entry,index)=>{
+        const row=document.createElement('tr');
+        if(index<3)row.classList.add('podium-row',`podium-rank-${index+1}`);
+        const position=document.createElement('td');position.className='podium-position';
+        position.textContent=index<3?`${['🥇','🥈','🥉'][index]} ${index+1}.º`:`${index+1}.º`;
+        const name=document.createElement('td');name.className='rank-student-name';name.textContent=entry.name||'Sin nombre';
+        const course=document.createElement('td');course.textContent=entry.course||'—';
+        const score=document.createElement('td');score.className='rank-score';score.textContent=`${entry.correct}/${entry.total}`;
+        const time=document.createElement('td');time.className='rank-time';time.textContent=timeLabel(entry.seconds);
+        const detailCell=document.createElement('td');
+        const detailRow=document.createElement('tr');detailRow.hidden=true;
+        const detailContent=document.createElement('td');detailContent.colSpan=6;detailContent.className='teacher-detail';
+        const mistakes=entry.incorrect||[];
+        if(!mistakes.length)detailContent.textContent='¡Todas las respuestas son correctas!';
+        else for(const error of mistakes){
+          const p=document.createElement('p');
+          p.textContent=`${error.clue}: respondió «${error.given||'En blanco'}» · solución «${error.solution}»`;
+          detailContent.append(p);
+        }
+        detailRow.append(detailContent);
+        const button=teacherButton('Ver',()=>{
+          const opening=detailRow.hidden;detailRow.hidden=!opening;
+          button.textContent=opening?'Ocultar':'Ver';
+          button.setAttribute('aria-expanded',String(opening));
+        });
+        button.classList.add('rank-details-button');button.setAttribute('aria-expanded','false');
+        detailCell.append(button);
+        row.append(position,name,course,score,time,detailCell);
+        body.append(row,detailRow);
+      });
+      table.append(body);scroll.append(table);section.append(head,hint,scroll);target.append(section);
+    }
+  }
+  const practices=cloudEntries.filter(e=>e.origin!=='alumno' && Number.isFinite(e.seconds));
+  if(practices.length){
+    const details=document.createElement('details');details.className='practice-history';
+    const title=document.createElement('summary');title.textContent=`Pruebas anteriores del profesor (${practices.length})`;
+    const list=document.createElement('div');
+    practices.sort((a,b)=>(b.at||0)-(a.at||0)).forEach(item=>{
+      const p=document.createElement('p');p.textContent=`${item.name||'Prueba'} · ${item.correct}/${item.total} aciertos · ${timeLabel(item.seconds)}`;
+      list.append(p);
+    });
+    details.append(title,list);target.append(details);
+  }
+}
+
 function exportPuzzles(){
   const data={type:'CruciAulaPuzzles',version:1,puzzles};
   const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
