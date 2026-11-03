@@ -1,4 +1,4 @@
-/* CruciAula: corrección exclusiva del ranking (2026-11-02), basada en 0.6.3: entrada docente directa + portada QR y entregas con soluciones privadas.
+/* CruciAula: reintentos hasta la entrega final (2026-11-02), basada en ranking publicado: entrada docente directa + portada QR y entregas con soluciones privadas.
  * Independiente de Roscoaula. */
 'use strict';
 
@@ -303,6 +303,10 @@ async function finish(){
       const entry={puzzleId:state.activePuzzleId,name:`${state.student.first} ${state.student.last}`,course:state.student.course,seconds:serverSeconds,
         total,correct:total-incorrect.length,incorrect,at:Date.now(),date:new Date().toISOString()};
       renderRanking(false,entry);show('results');
+      // El botón de inicio no ofrece otra partida después de entregar.
+      $('#btn-play').disabled=true;
+      $('#home-mode').textContent='ACTIVIDAD FINALIZADA';
+      $('#home-card-detail').textContent='Tu entrega quedó registrada. No podés volver a comenzar esta actividad.';
       toast('¡Entrega guardada online!');
     }catch(err){
       console.error('Entrega de alumno:',err);
@@ -419,8 +423,10 @@ $('#form-student').addEventListener('submit',async e=>{
       const startRef=cloud.db.collection('inicios').doc(entryId);
       const old=await cloud.db.collection('entregas').doc(entryId).get();
       if(old.exists)throw Error('Esta actividad ya fue entregada desde este dispositivo.');
-      const prev=await startRef.get();
-      if(prev.exists)throw Error('Ya habías iniciado esta actividad. No podés reiniciar el reloj con este usuario.');
+      // Si no hay entrega, el alumno puede comenzar de cero, aun si abrió
+      // anteriormente esta actividad. El inicio nuevo se registra en el servidor.
+      // Las reglas de Firestore permiten sobrescribir solo su propio inicio,
+      // y únicamente mientras NO exista la entrega final.
       await startRef.set({uid:user.uid,puzzleId:guestPuzzle.id,startedAt:firebase.firestore.FieldValue.serverTimestamp()});
     }
     newGame();
@@ -434,10 +440,20 @@ $('#clue-answer').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDe
 $('#clear-answer').addEventListener('click',()=>{$('#clue-answer').value='';$('#clue-answer').focus()});
 $('#finish-game').addEventListener('click',finish);
 $('#show-wrong').addEventListener('click',()=>{const p=$('#wrong-answers-panel'),opening=p.hidden;p.hidden=!opening;$('#show-wrong').setAttribute('aria-expanded',String(opening));});
-$('#leave-game').addEventListener('click',()=>{if(qrGuest){alert('Si salís, el tiempo sigue contando y esta partida no se reinicia. Terminá y entregá para ver tu puntaje.');return}if(confirm('¿Querés salir? Se perderá el avance de esta partida.')){stopClock();show('home')}});
+$('#leave-game').addEventListener('click',()=>{
+  if(!confirm(qrGuest
+    ? 'Si salís sin entregar, se perderán tus respuestas. Podrás volver a empezar desde 00:00. ¿Querés salir?'
+    : '¿Querés salir? Se perderá el avance de esta partida.'))return;
+  stopClock();state.answers.clear();
+  show(qrGuest?'register':'home');
+});
 $('#back-to-home').addEventListener('click',()=>show('home'));
 $('#play-again').addEventListener('click',()=>{refreshPuzzleSelector();show('register')});
-$('#brand').addEventListener('click',e=>{e.preventDefault();if(state.running&&qrGuest){toast('Terminá y entregá antes de salir de la partida.');return}if(state.running&&!confirm('¿Salir de la partida en curso?'))return;stopClock();show('home')});
+$('#brand').addEventListener('click',e=>{
+  e.preventDefault();
+  if(state.running&&!confirm('Si salís sin entregar, perderás tu avance. Podrás volver a comenzar desde cero. ¿Querés salir?'))return;
+  stopClock();state.answers.clear();show('home');
+});
 // ---- Panel docente: acceso real Firebase Auth y guardado en Cloud Firestore. ----
 function loginMessage(message,isError=false){const status=$('#login-status');status.textContent=message;status.classList.toggle('login-error',isError);}
 $('#form-login').addEventListener('submit',async e=>{
@@ -812,7 +828,7 @@ async function loadStudentAccess(puzzleId){
       $('#home-mode').textContent='ACTIVIDAD ASIGNADA POR TU PROFESOR';
       $('#home-card-title').textContent=guestPuzzle.title;
       $('#home-card-detail').textContent=guestPuzzle.description||'¡Bienvenido! Prepará tus conocimientos para completar este crucigrama.';
-      $('#home-hint').textContent='Primero tocá Jugar y completá tus datos. El tiempo comienza cuando presiones «Comenzar crucigrama».';
+      $('#home-hint').textContent='Completá tus datos y empezá a jugar. Si salís antes de entregar, podrás comenzar de nuevo desde 00:00.';
       $('#btn-play').innerHTML='▶ &nbsp; Jugar <span aria-hidden="true">→</span>';
       $('#btn-play').disabled=false;
       $('#btn-ranking-home').hidden=true;
