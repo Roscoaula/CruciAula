@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#f1edff">
   <title>CruciAula | Aprendé, jugá y poné a prueba tus conocimientos</title>
-  <link rel="stylesheet" href="estilos.css?v=ranking-20261102">
+  <link rel="stylesheet" href="estilos.css?v=dos-modalidades-20261103">
 </head>
 <body>
   <!-- Muestra una espera neutra mientras Firebase determina si corresponde
@@ -72,7 +72,7 @@
     <section id="screen-register" class="screen screen-soft" aria-labelledby="register-title">
       <div class="step-card small-card">
         <button class="back-link" data-go="home">← Volver</button>
-        <span class="step-eyebrow">PASO 1 DE 2 · DATOS DEL ALUMNO</span>
+        <span class="step-eyebrow" id="register-mode">ACTIVIDAD ASIGNADA POR EL PROFESOR</span>
         <span class="round-icon">🎓</span>
         <h1 id="register-title">Completá tus datos</h1>
         <p class="muted" id="register-intro">Ingresá tus datos. El cronómetro empieza recién cuando presiones <strong>«Comenzar crucigrama»</strong>.</p>
@@ -91,12 +91,12 @@
     <!-- JUEGO -->
     <section id="screen-game" class="screen game-screen" aria-labelledby="game-title">
       <div class="game-header">
-        <div><button class="back-link" id="leave-game">← Salir del crucigrama</button><div class="game-title-line"><span class="game-emoji">🏎️</span><div><h1 id="game-title">Deportes y periodismo</h1><p>Resolvé las pistas. No verás qué está bien o mal hasta entregar.</p></div></div></div>
+        <div><button class="back-link" id="leave-game">← Salir del crucigrama</button><div class="game-title-line"><span class="game-emoji">🏎️</span><div><p class="game-mode-label" id="game-mode-badge">Modalidad 1 — Evaluación</p><h1 id="game-title">Deportes y periodismo</h1><p id="game-description">Respondé las pistas y entregá para conocer los resultados.</p></div></div></div>
         <div class="game-meta"><div class="timer"><span class="timer-icon">◷</span> <strong id="timer-text" aria-live="off">00:00</strong><small>Tiempo transcurrido</small></div><div class="progress-wrap"><div class="progress-track"><div id="progress-bar"></div></div><span id="progress-text" title="Respuestas cargadas, no aciertos">0/0</span></div></div>
       </div>
       <div class="game-layout">
-        <div class="board-panel"><div class="crossword-container"><div class="crossword" id="crossword" role="group" aria-label="Grilla de crucigrama"></div></div><p class="board-help">Las respuestas se muestran sin corregir durante el juego.</p></div>
-        <aside class="clue-panel"><div class="tabs"><button class="tab selected" id="tab-across">Horizontales</button><button class="tab" id="tab-down">Verticales</button></div><div class="clue-list" id="clue-list"></div><div class="answer-input"><label id="clue-selected-label" for="clue-answer">Seleccioná una pista</label><input id="clue-answer" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="Escribí tu respuesta..."><div class="answer-actions"><button class="btn btn-primary" id="fill-answer">Guardar y siguiente →</button><button class="btn btn-outline" id="clear-answer">Limpiar</button></div></div><button class="btn btn-finish block" id="finish-game">✓ &nbsp; Entregar y ver puntaje</button><p class="small-note">Solo conocerás las respuestas correctas y tu puntaje después de entregar. Antes podés modificar cualquier palabra.</p></aside>
+        <div class="board-panel"><div class="crossword-container"><div class="crossword" id="crossword" role="group" aria-label="Grilla de crucigrama"></div></div><p class="board-help" id="board-help">Las respuestas se corrigen al finalizar.</p></div>
+        <aside class="clue-panel"><div class="tabs"><button class="tab selected" id="tab-across">Horizontales</button><button class="tab" id="tab-down">Verticales</button></div><div class="clue-list" id="clue-list"></div><div class="answer-input"><label id="clue-selected-label" for="clue-answer">Seleccioná una pista</label><input id="clue-answer" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="Escribí tu respuesta..."><div class="answer-actions"><button class="btn btn-primary" id="fill-answer">Comprobar y seguir →</button><button class="btn btn-outline" id="clear-answer">Limpiar</button></div><p id="answer-feedback" class="answer-feedback" role="status" aria-live="polite"></p></div><button class="btn btn-finish block" id="finish-game">✓ &nbsp; Entregar y ver puntaje</button><p class="small-note" id="game-note">Las soluciones se muestran al finalizar.</p></aside>
       </div>
     </section>
 
@@ -107,7 +107,7 @@
           <button class="btn btn-outline block" id="show-wrong" aria-expanded="false" aria-controls="wrong-answers-panel">📋 Respuestas incorrectas <span aria-hidden="true">▾</span></button>
           <div id="wrong-answers-panel" class="wrong-answers-panel" hidden></div>
         </div>
-        <div id="results-ranking-header"><h2 class="ranking-title">🏅 Clasificación de esta computadora</h2><p class="small-note">Solo entran al ranking quienes tengan todas las respuestas correctas. Juan puede ver el ranking online de los alumnos en el panel docente.</p></div><div id="ranking-podium" class="podium"></div><div id="ranking-rest"></div><div class="result-buttons"><button class="btn btn-primary" id="back-to-home">Volver al inicio</button><button class="btn btn-outline" id="play-again">Volver a jugar</button></div></div>
+        <div id="results-ranking-header"><h2 class="ranking-title">🏅 Clasificación de esta computadora</h2><p class="small-note">Se incluyen todas las entregas de esta modalidad; se ordenan por aciertos y después por tiempo. El ranking de los alumnos está en el panel docente.</p></div><div id="ranking-podium" class="podium"></div><div id="ranking-rest"></div><div class="result-buttons"><button class="btn btn-primary" id="back-to-home">Volver al inicio</button></div></div>
     </section>
 
     <!-- ACCESO DOCENTE: Firebase Authentication -->
@@ -138,10 +138,18 @@
           <div class="teacher-heading-actions"><button class="btn btn-outline" id="teacher-logout">Cerrar sesión</button><button class="btn btn-primary" id="new-puzzle">+ Crear crucigrama</button></div>
         </div>
         <div class="teacher-alert"><strong>🔐 Cuenta docente protegida.</strong> Los crucigramas se guardan en Firebase y se comparten entre los dispositivos donde Juan inicia sesión. <strong>Cada actividad publicada tiene un QR. Las entregas se registran en Firestore.</strong> <span id="cloud-status">Conectando…</span></div>
+        <div class="teacher-mode-panel" aria-label="Elegir modalidad para los alumnos">
+          <div class="teacher-mode-tabs" role="tablist" aria-label="Modalidades de CruciAula">
+            <button type="button" class="teacher-mode-tab selected" data-teacher-mode="evaluacion" role="tab" aria-selected="true">📝 Modalidad 1 — Evaluación</button>
+            <button type="button" class="teacher-mode-tab" data-teacher-mode="practica" role="tab" aria-selected="false">✏️ Modalidad 2 — Práctica con corrección</button>
+          </div>
+          <p class="teacher-mode-explain" id="teacher-mode-explain">Los alumnos responden sin pistas de acierto o error. Las soluciones aparecen únicamente al entregar.</p>
+          <p class="teacher-mode-note">Elegí una pestaña y compartí el QR de esa modalidad. Los crucigramas se crean una sola vez; los resultados se guardan separados.</p>
+        </div>
         <div class="teacher-toolbar"><button class="btn btn-outline" id="recover-local">↥ Recuperar crucigramas anteriores</button><button class="btn btn-outline" id="export-puzzles">⬇ Copia de seguridad</button><label class="btn btn-outline upload-label" for="import-file">⬆ Importar crucigramas <input type="file" id="import-file" accept=".json,application/json" hidden></label></div>
         <div id="teacher-puzzles" class="teacher-grid"></div>
         <div class="teacher-results">
-          <div class="teacher-section-head"><h2>📊 Resultados de alumnos y pruebas</h2><span class="muted">Entregas del alumnado y pruebas</span></div>
+          <div class="teacher-section-head"><h2>📊 Resultados de alumnos y pruebas</h2><span class="muted" id="teacher-current-mode">Modalidad 1 — Evaluación</span></div>
           <div id="teacher-results-table"></div>
         </div>
       </div>
@@ -168,11 +176,11 @@
   <div class="share-modal" id="share-modal" hidden>
     <div class="share-content" role="dialog" aria-modal="true" aria-label="Compartir crucigrama">
       <button class="share-close" id="share-close" type="button" aria-label="Cerrar">×</button>
-      <h2>📲 Código QR de la actividad</h2><p>Mostralo a los alumnos o compartí el enlace. Al ingresar escribirán su nombre, apellido y comisión.</p>
+      <h2>📲 Código QR de la actividad</h2><p class="share-mode-title" id="share-mode-title">Modalidad 1 — Evaluación</p><p>Mostralo a los alumnos o compartí el enlace. Al ingresar escribirán su nombre, apellido y curso.</p>
       <div id="share-qr" class="share-qr"></div>
       <label for="share-link">Enlace individual</label><input id="share-link" readonly>
       <button id="share-copy" class="btn btn-primary block" type="button">Copiar enlace</button>
-      <p class="small-note">Cada alumno tendrá un intento por sesión. Para probar como alumno, usá una ventana de incógnito.</p>
+      <p class="small-note">El QR pertenece a la modalidad seleccionada. La entrega final impide repetir con la misma sesión de alumno.</p>
     </div>
   </div>
   <div id="toast" role="status" aria-live="polite" class="toast"></div>
@@ -181,6 +189,6 @@
   <script defer src="https://www.gstatic.com/firebasejs/13.1.0/firebase-firestore-compat.js"></script>
   <script defer src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
   <script defer src="firebase-cloud.js"></script>
-  <script defer src="app.js?v=intentos-20261102-1"></script>
+  <script defer src="app.js?v=dos-modalidades-20261103-1"></script>
 </body>
 </html>
