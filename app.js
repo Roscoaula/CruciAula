@@ -70,7 +70,7 @@ async function loadCloud(){
     const s=doc.data(),sol=keys.get(s.puzzleId)||{},correctKeys=Object.keys(sol);
     const incorrect=correctKeys.filter(id=>normalize(s.answers?.[id]||'')!==sol[id]).map(id=>({clue:'Pista '+id,given:s.answers?.[id]||'',solution:sol[id]}));
     const start=s.startedAt?.toMillis?.(),end=s.submittedAt?.toMillis?.();
-    return {puzzleId:s.puzzleId,mode:entryMode(doc.id,s),name:s.name,course:s.course,total:correctKeys.length,
+    return {puzzleId:s.puzzleId,mode:entryMode(doc.id,s),name:s.name,course:s.course,answers:s.answers||{},total:correctKeys.length,
       correct:correctKeys.length-incorrect.length,incorrect,
       seconds:Number.isFinite(start)&&Number.isFinite(end)?Math.max(0,Math.floor((end-start)/1000)):NaN,
       date:new Date(end||Date.now()).toISOString(),at:end||Date.now(),origin:'alumno'};
@@ -699,6 +699,68 @@ function renderTeacher(){
   });
   renderTeacherResults();
 }
+/** Vista docente: reconstruye el tablero con las respuestas realmente entregadas.
+ * No hace lecturas públicas ni modifica el ranking o las entregas en Firebase.
+ */
+function renderSubmittedCrossword(entry){
+  const wrapper=document.createElement('div');wrapper.className='submitted-crossword';
+  const heading=document.createElement('h4');heading.textContent=`🧩 Crucigrama entregado por ${entry.name||'Alumno'}`;
+  wrapper.append(heading);
+  const subtitle=document.createElement('p');subtitle.className='submitted-crossword-subtitle';
+  subtitle.textContent=`${entry.course||'Sin curso'} · ${entry.correct}/${entry.total} correctas · ${timeLabel(entry.seconds)} · ${modeTitle(entry.mode||MODES.EVALUACION)}`;
+  wrapper.append(subtitle);
+  if(!entry.answers || typeof entry.answers!=='object'){
+    const empty=document.createElement('p');empty.textContent='Las letras de esta entrega no están disponibles en el registro.';wrapper.append(empty);return wrapper;
+  }
+  const source=puzzles.find(p=>p.id===entry.puzzleId);
+  if(!source?.questions?.length){
+    const empty=document.createElement('p');empty.textContent='Este crucigrama ya no está disponible para reconstruir su tablero. El detalle de las respuestas sigue disponible en «Ver».';wrapper.append(empty);return wrapper;
+  }
+  const layout=buildCrossword(source.questions);
+  if(!layout.words?.length){const empty=document.createElement('p');empty.textContent='No se pudo reconstruir la grilla.';wrapper.append(empty);return wrapper;}
+  const letters=new Map(),starts=new Map(),markedWrong=new Set(),occupied=new Set();
+  for(const w of layout.words){
+    const first=key(w.row,w.col);
+    starts.set(first,w.number);
+    const submitted=normalize(entry.answers[String(w.id)]||'');
+    const incorrect=submitted.length>0 && submitted!==w.answer;
+    for(let i=0;i<w.length;i++){
+      const address=key(w.row+(w.dir==='v'?i:0),w.col+(w.dir==='h'?i:0));
+      occupied.add(address);
+      // Igual que en el tablero de juego, las palabras cruzadas comparten casillas.
+      if(submitted[i])letters.set(address,submitted[i]);
+      if(incorrect)markedWrong.add(address);
+    }
+  }
+  const scroll=document.createElement('div');scroll.className='submitted-crossword-scroll';
+  scroll.setAttribute('role','region');scroll.setAttribute('aria-label','Tablero entregado');scroll.tabIndex=0;
+  const grid=document.createElement('div');grid.className='submitted-crossword-grid';
+  grid.style.setProperty('--submitted-cols',String(layout.cols));
+  for(let r=0;r<layout.rows;r++)for(let c=0;c<layout.cols;c++){
+    const address=key(r,c),cell=document.createElement('div');
+    cell.className='submitted-crossword-cell';
+    if(!occupied.has(address)){cell.classList.add('is-outside');cell.setAttribute('aria-hidden','true');}
+    else {
+      if(markedWrong.has(address))cell.classList.add('is-wrong');
+      if(!letters.has(address))cell.classList.add('is-unanswered');
+      cell.textContent=letters.get(address)||'';
+      if(starts.has(address)){
+        const number=document.createElement('span');number.className='submitted-crossword-number';
+        number.textContent=starts.get(address);cell.append(number);
+      }
+    }
+    grid.append(cell);
+  }
+  scroll.append(grid);wrapper.append(scroll);
+  const legend=document.createElement('p');legend.className='submitted-crossword-legend';
+  legend.textContent='Rojo: palabra equivocada · Casillas vacías: letras sin completar. Las letras muestran lo que entregó el alumno.';
+  wrapper.append(legend);
+  const note=document.createElement('p');note.className='submitted-crossword-note';
+  note.textContent='La grilla se reconstruye con la versión actual del crucigrama. Si Juan editó las preguntas después de esta entrega, la distribución podría ser distinta de la original.';
+  wrapper.append(note);
+  return wrapper;
+}
+
 function compareResults(a,b){
   return (Number(b.correct)||0)-(Number(a.correct)||0)
     || (Number(a.seconds)||0)-(Number(b.seconds)||0)
@@ -767,9 +829,22 @@ function renderTeacherResults(){
           button.setAttribute('aria-expanded',String(opening));
         });
         button.classList.add('rank-details-button');button.setAttribute('aria-expanded','false');
-        detailCell.append(button);
+        const crosswordRow=document.createElement('tr');crosswordRow.hidden=true;
+        const crosswordContent=document.createElement('td');crosswordContent.colSpan=6;crosswordContent.className='teacher-detail';
+        crosswordRow.append(crosswordContent);
+        const boardButton=teacherButton('Ver crucigrama',()=>{
+          const opening=crosswordRow.hidden;
+          if(opening && !crosswordContent.hasChildNodes())crosswordContent.append(renderSubmittedCrossword(entry));
+          crosswordRow.hidden=!opening;
+          boardButton.textContent=opening?'Ocultar crucigrama':'Ver crucigrama';
+          boardButton.setAttribute('aria-expanded',String(opening));
+        });
+        boardButton.classList.add('rank-details-button','rank-board-button');
+        boardButton.setAttribute('aria-expanded','false');
+        detailCell.classList.add('rank-actions-cell');
+        detailCell.append(button,boardButton);
         row.append(position,name,course,score,time,detailCell);
-        body.append(row,detailRow);
+        body.append(row,detailRow,crosswordRow);
       });
       table.append(body);scroll.append(table);section.append(head,hint,scroll);target.append(section);
     }

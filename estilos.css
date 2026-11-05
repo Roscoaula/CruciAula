@@ -139,3 +139,21 @@
 .share-mode-title{font-weight:800;color:#5936b6;background:#f2edff;border-radius:99px;padding:8px 12px;margin:8px auto;max-width:fit-content}
 .game-mode-label{color:#6245c5!important;text-transform:uppercase;letter-spacing:.06em;font-size:11px!important;font-weight:850;margin-bottom:5px!important}
 @media (max-width:680px){.teacher-mode-tabs{grid-template-columns:1fr}.teacher-mode-panel{padding:12px}.teacher-mode-tab{font-size:12px}}
+
+/* Vista de crucigrama entregado en los resultados del docente. */
+.rank-actions-cell{white-space:nowrap}
+.rank-actions-cell .rank-board-button{margin-left:7px}
+.submitted-crossword{padding:7px 0 9px;color:#282044}
+.submitted-crossword h4{font-size:18px;font-weight:850;margin:0 0 7px;color:#32215d}
+.submitted-crossword-subtitle{font-size:12px;color:#756c91;margin:0 0 14px!important}
+.submitted-crossword-scroll{max-width:100%;overflow:auto;background:#faf8ff;border:1px solid #e8e1fa;border-radius:14px;padding:18px 10px;outline-offset:2px}
+.submitted-crossword-grid{--submitted-cell-size:clamp(25px,3vw,37px);display:grid;grid-template-columns:repeat(var(--submitted-cols),var(--submitted-cell-size));grid-auto-rows:var(--submitted-cell-size);width:max-content;margin:auto;gap:0}
+.submitted-crossword-cell{position:relative;display:grid;place-items:center;border:1px solid #403853;margin:-1px 0 0 -1px;background:#fff;font-size:clamp(12px,1.6vw,17px);font-weight:850;color:#4c2ec3;line-height:1}
+.submitted-crossword-cell.is-outside{border-color:transparent;background:transparent}
+.submitted-crossword-cell.is-wrong{background:#ffe5e9;border-color:#dd526a;color:#ab1735;z-index:1}
+.submitted-crossword-cell.is-unanswered:not(.is-outside){color:#9891ae}
+.submitted-crossword-number{position:absolute;top:2px;left:3px;font-size:8px;font-weight:650;color:#473e65}
+.submitted-crossword-legend{font-size:12px;color:#57477a;margin:12px 0 4px!important;line-height:1.5}
+.submitted-crossword-note{font-size:11px;color:#80769a;margin:5px 0 0!important;line-height:1.5}
+.student-ranking-table{min-width:770px}
+@media(max-width:700px){.submitted-crossword-grid{--submitted-cell-size:27px}.rank-actions-cell .rank-board-button{margin-top:5px;margin-left:0}.rank-actions-cell{white-space:normal}}
