@@ -204,3 +204,78 @@
   #screen-game .crossword-container{max-height:min(18vh,130px)}
   #screen-game .active-clue-text{scroll-margin-top:175px}
 }
+
+
+/* CruciAula · Diseño final aprobado. Cambios visuales del área de juego.
+   Se conserva el comportamiento original de ambas modalidades y el tablero móvil fijo. */
+#screen-game{
+  background:radial-gradient(ellipse at 10% 18%,#f5ecff 0%,transparent 45%),
+    linear-gradient(145deg,#fcfaff 0%,#f8f1ff 55%,#f8f5ff 100%);
+}
+#screen-game .game-title-line{gap:12px}
+#screen-game .game-emoji{
+  display:inline-flex;flex-shrink:0;align-items:center;justify-content:center;
+  min-width:32px;font-size:24px;line-height:1.05;letter-spacing:-5px;
+  filter:saturate(.86);
+}
+#screen-game .board-panel{
+  position:relative;isolation:isolate;overflow:hidden;
+  background:radial-gradient(circle at 10% 18%,rgba(255,255,255,.72),transparent 25%),
+    radial-gradient(circle at 86% 70%,rgba(255,255,255,.55),transparent 32%),
+    linear-gradient(145deg,#eddbff 0%,#f5eaff 55%,#e9d7fa 100%);
+  border-color:#d9bfff;
+}
+#screen-game .game-board-art{
+  display:block;position:absolute;inset:0;width:100%;height:100%;
+  color:#9475d5;opacity:.20;pointer-events:none;z-index:0;
+}
+#screen-game .board-panel>.mobile-board-heading,
+#screen-game .board-panel>.crossword-container,
+#screen-game .board-panel>.board-help{position:relative;z-index:1}
+#screen-game .board-panel .crossword-container{background:transparent}
+#screen-game .cell:not(.empty){
+  background:#fff;border:1px solid #511aca;
+  border-radius:4px;color:#4f3482;
+}
+#screen-game .cell.selected:not(.empty){
+  background:#f0e6ff;border-color:#511aca;
+  z-index:2;
+}
+#screen-game .cell.filled:not(.empty){color:#4b26b9}
+#screen-game .cell .num{color:#493384}
+#screen-game .clue-panel{
+  background:linear-gradient(165deg,#f5ecff 0%,#efe2ff 100%);
+  border-color:#e3d1ff;
+}
+#screen-game .active-clue-text{
+  color:#483177;background:#e8d4fa;border-color:#ddc4f7;
+}
+#screen-game .clue-list{
+  background:#f0e3fb;border-color:#e4d0f7;
+}
+#screen-game .clue{
+  background:#f0e3fb;color:#514275;border-radius:8px;
+}
+#screen-game .clue span:first-child{color:#5630b3}
+#screen-game .clue.selected:not(.incorrect){
+  background:#dec4f4;color:#413063;
+}
+#screen-game .clue.answered:not(.incorrect):not(.selected){background:#e9d8f7}
+#screen-game .answer-input label,
+#screen-game .small-note{color:#635386}
+#screen-game #clue-answer{
+  background:#faf7ff;border:1px solid #9669e9;color:#3d2e6d;
+}
+#screen-game .tab:not(.selected){background:#e9d8f7;color:#5e5082}
+#screen-game .tab.selected{background:#4930c2}
+#screen-game .mobile-board-heading{color:#4f2fc0}
+@media(max-width:700px){
+  #screen-game .board-panel{position:sticky;top:5px;background:radial-gradient(circle at 8% 12%,rgba(255,255,255,.65),transparent 33%),linear-gradient(145deg,#eedcff 0%,#f5ebff 53%,#ead9fc 100%)}
+  #screen-game .game-board-art{opacity:.17}
+  #screen-game .game-emoji{font-size:23px;min-width:30px}
+  #screen-game .cell:not(.empty){border-radius:3px}
+  #screen-game .clue-panel{background:linear-gradient(165deg,#f6eeff,#eee1fd)}
+  #screen-game .active-clue-text{background:#e8d4f9;border:1px solid #e0c9fa}
+  #screen-game .clue-list{background:#f0e3fb}
+  #screen-game .clue{background:#f0e3fb}
+}

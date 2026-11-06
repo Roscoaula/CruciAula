@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#f1edff">
   <title>CruciAula | Aprendé, jugá y poné a prueba tus conocimientos</title>
-  <link rel="stylesheet" href="estilos.css?v=movil-tablero-visible-20261105">
+  <link rel="stylesheet" href="estilos.css?v=diseno-final-20261105">
 </head>
 <body>
   <!-- Muestra una espera neutra mientras Firebase determina si corresponde
@@ -91,11 +91,21 @@
     <!-- JUEGO -->
     <section id="screen-game" class="screen game-screen" aria-labelledby="game-title">
       <div class="game-header">
-        <div><button class="back-link" id="leave-game">← Salir del crucigrama</button><div class="game-title-line"><span class="game-emoji">🏎️</span><div><p class="game-mode-label" id="game-mode-badge">Modalidad 1 — Evaluación</p><h1 id="game-title">Deportes y periodismo</h1><p id="game-description">Respondé las pistas y entregá para conocer los resultados.</p></div></div></div>
+        <div><button class="back-link" id="leave-game">← Salir del crucigrama</button><div class="game-title-line"><span class="game-emoji" aria-hidden="true">🧩</span><div><p class="game-mode-label" id="game-mode-badge">Modalidad 1 — Evaluación</p><h1 id="game-title">Deportes y periodismo</h1><p id="game-description">Respondé las pistas y entregá para conocer los resultados.</p></div></div></div>
         <div class="game-meta"><div class="timer"><span class="timer-icon">◷</span> <strong id="timer-text" aria-live="off">00:00</strong><small>Tiempo transcurrido</small></div><div class="progress-wrap"><div class="progress-track"><div id="progress-bar"></div></div><span id="progress-text" title="Respuestas cargadas, no aciertos">0/0</span></div></div>
       </div>
       <div class="game-layout">
-        <div class="board-panel"><div class="mobile-board-heading"><span>🧩 Tu crucigrama</span><small>Deslizá la grilla si es necesario</small></div><div class="crossword-container"><div class="crossword" id="crossword" role="group" aria-label="Grilla de crucigrama"></div></div><p class="board-help" id="board-help">Las respuestas se corrigen al finalizar.</p></div>
+        <div class="board-panel"><svg class="game-board-art" aria-hidden="true" viewBox="0 0 760 480" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg">
+          <g fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+            <!-- Pelota de básquet, micrófono, diario, fútbol, silbato y trofeo. -->
+            <g transform="translate(78 90)"><circle r="34"/><path d="M-34 0H34M0-34V34M-24-24Q4 0-24 24M24-24Q-4 0 24 24"/></g>
+            <g transform="translate(670 90)"><rect x="-14" y="-37" width="28" height="52" rx="14"/><path d="M-26 0V8a26 26 0 0 0 52 0V0M0 34v19M-19 53h38"/></g>
+            <g transform="translate(78 242) rotate(-13)"><rect x="-43" y="-31" width="86" height="70" rx="4"/><rect x="-30" y="-17" width="25" height="20"/><path d="M6-14h25M6-5h25M-30 16h62M-30 27h62"/></g>
+            <g transform="translate(680 243)"><circle r="35"/><path d="M-12-8L0-19L16-12L19 6L3 19L-13 11Z M0-19L-4-34M16-12L33-7M19 6L26 25M3 19L-6 34M-13 11L-33 14M-12-8L-25-24"/></g>
+            <g transform="translate(80 400) rotate(-16)"><path d="M-30-11h38c13 0 24 10 24 22s-12 22-25 22H-16c-13 0-21-9-21-21 0-9 3-16 7-23Z"/><circle cx="10" cy="13" r="8"/><path d="M-37 12l-15-6M-30-11l-7-12"/></g>
+            <g transform="translate(674 397)"><path d="M-25-26h50v25c0 22-13 35-25 35s-25-13-25-35Z M-25-18h-21v13c0 16 13 22 25 21M25-18h21v13c0 16-13 22-25 21M0 34v12M-19 46h38"/></g>
+          </g>
+        </svg><div class="mobile-board-heading"><span>🧩 Tu crucigrama</span><small>Deslizá la grilla si es necesario</small></div><div class="crossword-container"><div class="crossword" id="crossword" role="group" aria-label="Grilla de crucigrama"></div></div><p class="board-help" id="board-help">Las respuestas se corrigen al finalizar.</p></div>
         <aside class="clue-panel"><div class="tabs"><button class="tab selected" id="tab-across">Horizontales</button><button class="tab" id="tab-down">Verticales</button></div><div class="clue-list" id="clue-list"></div><div class="answer-input"><p class="active-clue-text" id="active-clue-text" aria-live="polite">Elegí una pista para comenzar.</p><label id="clue-selected-label" for="clue-answer">Seleccioná una pista</label><input id="clue-answer" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="Escribí tu respuesta..."><div class="answer-actions"><button class="btn btn-primary" id="fill-answer">Comprobar y seguir →</button><button class="btn btn-outline" id="clear-answer">Limpiar</button></div><p id="answer-feedback" class="answer-feedback" role="status" aria-live="polite"></p></div><button class="btn btn-finish block" id="finish-game">✓ &nbsp; Entregar y ver puntaje</button><p class="small-note" id="game-note">Las soluciones se muestran al finalizar.</p></aside>
       </div>
     </section>
@@ -189,6 +199,6 @@
   <script defer src="https://www.gstatic.com/firebasejs/13.1.0/firebase-firestore-compat.js"></script>
   <script defer src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
   <script defer src="firebase-cloud.js"></script>
-  <script defer src="app.js?v=movil-tablero-visible-20261105"></script>
+  <script defer src="app.js?v=diseno-final-20261105"></script>
 </body>
 </html>

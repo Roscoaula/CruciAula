@@ -184,6 +184,34 @@ function buildCrossword(source){
   return {words,cells:used,rows:Math.max(...ys)-minR+1,cols:Math.max(...xs)-minC+1,unused:remaining.map(w=>w.answer)};
 }
 
+/** Iconito contextual del título del crucigrama (sin servicios externos). */
+function gameIconForTitle(title){
+  const t=String(title||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+  // Los temas muy específicos primero, para que «automovilismo» no se confunda con otro deporte.
+  const topics=[
+    [/(automovil|formula\s*(?:1|uno)|\bf1\b|rally|kart|motor\s?sport)/,'🏎️'],
+    [/(judo|karate|taekwondo|artes marciales|judoca)/,'🥋'],
+    [/(basquet|basket|baloncesto|\bnba\b)/,'🏀'],
+    [/(futbol|\bfifa\b|soccer|mundial de futbol)/,'⚽'],
+    [/(tenis|\batp\b|\bwta\b|wimbledon)/,'🎾'],
+    [/(voley|voleibol|volleyball)/,'🏐'],
+    [/(hockey)/,'🏑'],
+    [/(natacion|natatorio|nadador)/,'🏊'],
+    [/(rugby)/,'🏉'],
+    [/(golf)/,'⛳'],
+    [/(atletismo|maraton|corredor)/,'🏃'],
+    [/(boxeo|boxeo olimpico)/,'🥊'],
+    [/(ciclismo|ciclista|bicicleta)/,'🚴'],
+    [/(beisbol|baseball)/,'⚾'],
+    [/(handball|balonmano)/,'🤾'],
+    [/(ajedrez)/,'♟️'],
+    [/(periodismo|periodista|comunicacion|radio|locucion|relator|medios)/,'🎙️'],
+    [/(deporte|olimpic|educacion fisica|actividad fisica)/,'🏀']
+  ];
+  const matches=topics.filter(([test])=>test.test(t)).map(([,emoji])=>emoji);
+  return [...new Set(matches)].slice(0,2).join('') || '🧩';
+}
+
 function newGame(){
   const selected=activePuzzle();
   if(!selected){toast('Primero hay que crear un crucigrama.');show('home');return}
@@ -197,6 +225,7 @@ function newGame(){
   } : buildCrossword(selected.questions);
   if(!puzzle.words.length){toast('Este crucigrama no tiene palabras para jugar.');return}
   $('#game-title').textContent=selected.title;
+  $('.game-emoji').textContent=gameIconForTitle(selected.title);
   const practice = state.mode===MODES.PRACTICA;
   $('#game-mode-badge').textContent=modeTitle(state.mode);
   $('#game-description').textContent=practice
