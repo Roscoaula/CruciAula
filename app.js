@@ -19,7 +19,7 @@ const PREGUNTAS = [
 
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
-const state = {activePuzzleId:null, mode:'evaluacion', student: null, words: [], cells: new Map(), selected: null, direction:'h', answers:new Map(), feedback:new Map(), validating:false, startedAt:0, interval:null, elapsed:0, running:false};
+const state = {activePuzzleId:null, mode:'evaluacion', student: null, words: [], cells: new Map(), selected: null, direction:'h', answers:new Map(), feedback:new Map(), previewEditing:false, validating:false, startedAt:0, interval:null, elapsed:0, running:false};
 const STORAGE = 'cruciaula_demo_resultados_v1'; // Conserva las partidas previas.
 const PUZZLE_STORAGE = 'cruciaula_demo_crucigramas_v1';
 const SAMPLE_ID = 'deportes-ejemplo';
@@ -210,7 +210,7 @@ function newGame(){
     ? 'Se marca en rojo si está mal; las soluciones completas se muestran después de entregar.'
     : 'No se indica si está bien o mal hasta que entregues. Podés volver a una pista y cambiarla.';
   state.words=puzzle.words;state.cells=puzzle.cells;state.rows=puzzle.rows;state.cols=puzzle.cols;
-  state.answers=new Map();state.feedback=new Map();state.validating=false;state.direction='h';state.selected=state.words.find(w=>w.dir==='h')?.id??state.words[0]?.id;
+  state.answers=new Map();state.feedback=new Map();state.previewEditing=false;state.validating=false;state.direction='h';state.selected=state.words.find(w=>w.dir==='h')?.id??state.words[0]?.id;
   show('game');startClock();renderBoard();renderClues();selectWord(state.selected);
   if(puzzle.unused.length)console.info('No encajaron estas palabras:',puzzle.unused.join(', '));
 }
@@ -218,10 +218,28 @@ function getWord(id){return state.words.find(w=>w.id===id)}
 function wordKeys(w){return Array.from({length:w.length},(_,i)=>key(w.row+(w.dir==='v'?i:0),w.col+(w.dir==='h'?i:0)))}
 function renderBoard(){
   const grid=$('#crossword');grid.style.setProperty('--cols',state.cols);grid.textContent='';
+  // En el celular, ajustamos las casillas al ancho disponible y permitimos
+  // deslizar una grilla excepcionalmente larga sin perder la pregunta.
+  if(window.innerWidth<=700){
+    const usableWidth=Math.max(210,window.innerWidth-74);
+    const size=Math.max(10,Math.min(27,Math.floor(usableWidth/Math.max(1,state.cols))));
+    grid.style.setProperty('--mobile-cell-size',`${size}px`);
+  }else grid.style.removeProperty('--mobile-cell-size');
   const nums=new Map();const fills=new Map();
-  state.words.forEach(w=>{nums.set(key(w.row,w.col),w.number);const current=state.answers.get(w.id)||'';wordKeys(w).forEach((k,i)=>{if(current[i])fills.set(k,current[i])})});
-  const active=getWord(state.selected);const activeKeys=new Set(active?wordKeys(active):[]);
-  const incorrectKeys=new Set(active && state.feedback.get(active.id)==='incorrect' ? wordKeys(active) : []);
+  const active=getWord(state.selected);
+  const preview=window.innerWidth<=700 && state.previewEditing && active;
+  state.words.forEach(w=>{
+    nums.set(key(w.row,w.col),w.number);
+    if(preview && w.id===active.id)return;
+    const current=state.answers.get(w.id)||'';
+    wordKeys(w).forEach((k,i)=>{if(current[i])fills.set(k,current[i])});
+  });
+  if(preview){
+    const typed=normalize($('#clue-answer').value);
+    wordKeys(active).forEach((k,i)=>{if(typed[i])fills.set(k,typed[i])});
+  }
+  const activeKeys=new Set(active?wordKeys(active):[]);
+  const incorrectKeys=new Set(active && !preview && state.feedback.get(active.id)==='incorrect' ? wordKeys(active) : []);
   const fragment=document.createDocumentFragment();
   for(let r=0;r<state.rows;r++)for(let c=0;c<state.cols;c++){
     const k=key(r,c),cell=document.createElement('button');cell.type='button';cell.className='cell';
@@ -235,12 +253,25 @@ function renderBoard(){
       cell.addEventListener('click',()=>{
         const options=state.words.filter(w=>wordKeys(w).includes(k));
         const preferred=options.find(w=>w.dir===state.direction)??options[0];
-        if(preferred)selectWord(preferred.id);
+        if(preferred)selectWord(preferred.id,true);
       });
     }
     fragment.append(cell);
   }
   grid.append(fragment);renderProgress();
+  // La fila o columna en uso queda centrada dentro de la grilla desplazable.
+  if(window.innerWidth<=700 && active){
+    const middle=Math.floor((active.length-1)/2);
+    const r=active.row+(active.dir==='v'?middle:0);
+    const c=active.col+(active.dir==='h'?middle:0);
+    const cell=grid.children[r*state.cols+c];
+    const scroller=grid.parentElement;
+    if(cell && scroller){
+      const a=cell.getBoundingClientRect(),b=scroller.getBoundingClientRect();
+      scroller.scrollLeft+=(a.left+a.width/2)-(b.left+b.width/2);
+      scroller.scrollTop+=(a.top+a.height/2)-(b.top+b.height/2);
+    }
+  }
 }
 function renderClues(){
   const horizontal=state.direction==='h';$('#tab-across').classList.toggle('selected',horizontal);$('#tab-down').classList.toggle('selected',!horizontal);
@@ -252,16 +283,22 @@ function renderClues(){
     else if(['correct','answered'].includes(state.feedback.get(w.id)))item.classList.add('answered');
     const n=document.createElement('span');n.textContent=`${w.number}.`;
     const t=document.createElement('span');t.textContent=w.clue;
-    item.append(n,t);item.addEventListener('click',()=>selectWord(w.id));clues.append(item);
+    item.append(n,t);item.addEventListener('click',()=>selectWord(w.id,true));clues.append(item);
   });
 }
-function selectWord(id){
+function selectWord(id,scrollToAnswer=false){
   const w=getWord(id);if(!w)return;
-  state.selected=id;state.direction=w.dir;
+  state.selected=id;state.direction=w.dir;state.previewEditing=false;
+  $('#active-clue-text').textContent=`${w.number}. ${w.clue}`;
   $('#clue-selected-label').textContent=`${w.number}. ${w.dir==='h'?'Horizontal':'Vertical'} · ${w.length} letras`;
   $('#clue-answer').value=state.answers.get(w.id)||'';
   showWordFeedback(state.mode===MODES.PRACTICA && state.feedback.get(w.id)==='incorrect' ? 'incorrect' : '');
   renderClues();renderBoard();
+  // Al tocar una casilla o elegir una pista, se acerca la zona de respuesta
+  // sin ocultar el tablero que queda fijo arriba durante el juego.
+  if(scrollToAnswer && window.innerWidth<=700){
+    requestAnimationFrame(()=>$('#active-clue-text').scrollIntoView({block:'start',behavior:'smooth'}));
+  }
 }
 function renderProgress(){
   // El progreso ahora indica respuestas validadas correctamente.
@@ -288,6 +325,7 @@ function nextWordAfter(currentId){
 async function fillAnswer(){
   if(state.validating)return;
   const w=getWord(state.selected);if(!w)return;
+  state.previewEditing=false;
   const response=normalize($('#clue-answer').value);
   if(state.mode===MODES.EVALUACION){
     if(!response){toast('Escribí una respuesta o elegí otra pista.');return;}
@@ -296,7 +334,7 @@ async function fillAnswer(){
     state.feedback.set(w.id,'answered');
     showWordFeedback('');
     const next=nextWordAfter(w.id);
-    if(next)selectWord(next.id);
+    if(next)selectWord(next.id,true);
     else {renderClues();renderBoard();showWordFeedback('', 'Respuestas cargadas. Revisalas o entregá para ver tu puntaje.');}
     return;
   }
@@ -332,7 +370,7 @@ async function fillAnswer(){
     state.feedback.set(w.id,'correct');
     showWordFeedback('');
     const next=nextWordAfter(w.id);
-    if(next)selectWord(next.id);
+    if(next)selectWord(next.id,true);
     else {renderClues();renderBoard();showWordFeedback('', '¡Todas las palabras están correctas! Ya podés finalizar.');}
   }catch(err){
     if(qrGuest && err.code==='permission-denied'){
@@ -514,13 +552,13 @@ $('#form-student').addEventListener('submit',async e=>{
   }catch(err){console.error('Inicio de partida:',err);alert('No se pudo comenzar: '+err.message)}
   finally{submit.disabled=false}
 });
-$('#tab-across').addEventListener('click',()=>{state.direction='h';selectWord(state.words.find(w=>w.dir==='h')?.id)});
-$('#tab-down').addEventListener('click',()=>{state.direction='v';selectWord(state.words.find(w=>w.dir==='v')?.id)});
+$('#tab-across').addEventListener('click',()=>{state.direction='h';selectWord(state.words.find(w=>w.dir==='h')?.id,true)});
+$('#tab-down').addEventListener('click',()=>{state.direction='v';selectWord(state.words.find(w=>w.dir==='v')?.id,true)});
 $('#fill-answer').addEventListener('click',fillAnswer);
-$('#clue-answer').addEventListener('input',()=>{if(state.feedback.get(state.selected)==='incorrect')showWordFeedback('');});
+$('#clue-answer').addEventListener('input',()=>{if(state.feedback.get(state.selected)==='incorrect')showWordFeedback('');if(window.innerWidth<=700){state.previewEditing=true;renderBoard();}});
 $('#clue-answer').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();fillAnswer()}});
 $('#clear-answer').addEventListener('click',()=>{
-  $('#clue-answer').value='';
+  $('#clue-answer').value='';state.previewEditing=false;
   state.answers.delete(state.selected);state.feedback.delete(state.selected);
   showWordFeedback('');renderClues();renderBoard();$('#clue-answer').focus();
 });
@@ -1045,3 +1083,6 @@ if(sharedPuzzleId){
 refreshPuzzleSelector();
 // Ayuda al QA automático sin exponer datos o privilegiar a ningún jugador.
 window.CruciAulaDemo={buildCrossword,source:PREGUNTAS,getPuzzles:()=>puzzles};
+
+// Ajuste visual al rotar o cambiar el tamaño del teléfono; no altera las entregas.
+window.addEventListener('resize',()=>{if($('#screen-game').classList.contains('active') && state.words.length)renderBoard();});

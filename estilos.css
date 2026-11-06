@@ -157,3 +157,50 @@
 .submitted-crossword-note{font-size:11px;color:#80769a;margin:5px 0 0!important;line-height:1.5}
 .student-ranking-table{min-width:770px}
 @media(max-width:700px){.submitted-crossword-grid{--submitted-cell-size:27px}.rank-actions-cell .rank-board-button{margin-top:5px;margin-left:0}.rank-actions-cell{white-space:normal}}
+
+/* Mejora de experiencia táctil: tablero y campo de respuesta visibles a la vez.
+   Solamente afecta a los alumnos en el juego con pantalla pequeña. */
+.active-clue-text,.mobile-board-heading{display:none}
+@media (max-width:700px){
+  #screen-game .game-layout{grid-template-columns:minmax(0,1fr);align-items:start;gap:10px}
+  #screen-game .board-panel{
+    position:sticky;top:5px;z-index:8;align-self:start;padding:8px 10px;
+    border:1px solid #d7ccff;background:#f8f6ff;
+    box-shadow:0 5px 19px rgba(46,25,104,.13);
+  }
+  #screen-game .mobile-board-heading{
+    display:flex;justify-content:space-between;align-items:center;
+    gap:6px;margin:0 2px 5px;color:#4b2db3;font-weight:850;font-size:12px;
+  }
+  #screen-game .mobile-board-heading small{color:#77708f;font-size:10px;font-weight:500}
+  #screen-game .crossword-container{
+    min-height:0;max-height:min(24vh,190px);padding:4px;
+    overflow:auto;overscroll-behavior:contain;
+    align-items:flex-start;justify-content:flex-start;
+    -webkit-overflow-scrolling:touch;
+  }
+  #screen-game .crossword{--cell-size:var(--mobile-cell-size,21px);margin:auto}
+  #screen-game .cell{font-size:clamp(9px,2.5vw,13px)}
+  #screen-game .cell .num{font-size:7px;top:1px;left:1px}
+  #screen-game .board-help{display:none}
+  #screen-game .clue-panel{display:flex;flex-direction:column;gap:10px;padding:12px}
+  #screen-game .answer-input{order:0;margin:0;scroll-margin-top:245px}
+  #screen-game .active-clue-text{
+    display:block;scroll-margin-top:245px;margin:0 0 10px;
+    border:1px solid #e3d9ff;border-radius:10px;
+    background:#f3eeff;padding:10px 11px;color:#34236d;
+    font-size:14px;font-weight:740;line-height:1.4;
+  }
+  #screen-game .answer-input label{margin-bottom:6px}
+  #screen-game #clue-answer{font-size:16px;padding:11px 12px}
+  #screen-game .answer-actions{margin-top:8px}
+  #screen-game .answer-actions .btn{padding:11px 9px;font-size:12px}
+  #screen-game .tabs{order:1;margin:0}
+  #screen-game .clue-list{order:2;max-height:238px}
+  #screen-game #finish-game{order:3;margin:4px 0 0}
+  #screen-game #game-note{order:4;margin:0;font-size:11px}
+}
+@media (max-width:700px) and (max-height:670px){
+  #screen-game .crossword-container{max-height:min(18vh,130px)}
+  #screen-game .active-clue-text{scroll-margin-top:175px}
+}

@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#f1edff">
   <title>CruciAula | Aprendé, jugá y poné a prueba tus conocimientos</title>
-  <link rel="stylesheet" href="estilos.css?v=ver-crucigrama-20261105">
+  <link rel="stylesheet" href="estilos.css?v=movil-tablero-visible-20261105">
 </head>
 <body>
   <!-- Muestra una espera neutra mientras Firebase determina si corresponde
@@ -95,8 +95,8 @@
         <div class="game-meta"><div class="timer"><span class="timer-icon">◷</span> <strong id="timer-text" aria-live="off">00:00</strong><small>Tiempo transcurrido</small></div><div class="progress-wrap"><div class="progress-track"><div id="progress-bar"></div></div><span id="progress-text" title="Respuestas cargadas, no aciertos">0/0</span></div></div>
       </div>
       <div class="game-layout">
-        <div class="board-panel"><div class="crossword-container"><div class="crossword" id="crossword" role="group" aria-label="Grilla de crucigrama"></div></div><p class="board-help" id="board-help">Las respuestas se corrigen al finalizar.</p></div>
-        <aside class="clue-panel"><div class="tabs"><button class="tab selected" id="tab-across">Horizontales</button><button class="tab" id="tab-down">Verticales</button></div><div class="clue-list" id="clue-list"></div><div class="answer-input"><label id="clue-selected-label" for="clue-answer">Seleccioná una pista</label><input id="clue-answer" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="Escribí tu respuesta..."><div class="answer-actions"><button class="btn btn-primary" id="fill-answer">Comprobar y seguir →</button><button class="btn btn-outline" id="clear-answer">Limpiar</button></div><p id="answer-feedback" class="answer-feedback" role="status" aria-live="polite"></p></div><button class="btn btn-finish block" id="finish-game">✓ &nbsp; Entregar y ver puntaje</button><p class="small-note" id="game-note">Las soluciones se muestran al finalizar.</p></aside>
+        <div class="board-panel"><div class="mobile-board-heading"><span>🧩 Tu crucigrama</span><small>Deslizá la grilla si es necesario</small></div><div class="crossword-container"><div class="crossword" id="crossword" role="group" aria-label="Grilla de crucigrama"></div></div><p class="board-help" id="board-help">Las respuestas se corrigen al finalizar.</p></div>
+        <aside class="clue-panel"><div class="tabs"><button class="tab selected" id="tab-across">Horizontales</button><button class="tab" id="tab-down">Verticales</button></div><div class="clue-list" id="clue-list"></div><div class="answer-input"><p class="active-clue-text" id="active-clue-text" aria-live="polite">Elegí una pista para comenzar.</p><label id="clue-selected-label" for="clue-answer">Seleccioná una pista</label><input id="clue-answer" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="Escribí tu respuesta..."><div class="answer-actions"><button class="btn btn-primary" id="fill-answer">Comprobar y seguir →</button><button class="btn btn-outline" id="clear-answer">Limpiar</button></div><p id="answer-feedback" class="answer-feedback" role="status" aria-live="polite"></p></div><button class="btn btn-finish block" id="finish-game">✓ &nbsp; Entregar y ver puntaje</button><p class="small-note" id="game-note">Las soluciones se muestran al finalizar.</p></aside>
       </div>
     </section>
 
@@ -189,6 +189,6 @@
   <script defer src="https://www.gstatic.com/firebasejs/13.1.0/firebase-firestore-compat.js"></script>
   <script defer src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
   <script defer src="firebase-cloud.js"></script>
-  <script defer src="app.js?v=ver-crucigrama-20261105"></script>
+  <script defer src="app.js?v=movil-tablero-visible-20261105"></script>
 </body>
 </html>
